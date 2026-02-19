@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -12,7 +13,12 @@ export default function Admin() {
   const [members, setMembers] = useState([]);
   const [activeTab, setActiveTab] = useState('websites');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
@@ -29,6 +35,34 @@ export default function Admin() {
   });
 
   const ADMIN_PASSWORD = 'admin1414';
+
+  // Check Firebase Auth state on load
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        // Check if user has isAdmin: true in Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists() && userDoc.data().isAdmin === true) {
+            setIsAuthenticated(true);
+            setIsAdmin(true);
+          } else {
+            setIsAuthenticated(false);
+            setIsAdmin(false);
+            setLoginError('Your account does not have admin access.');
+            await signOut(auth);
+          }
+        } catch (err) {
+          setIsAuthenticated(false);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+      }
+      setAuthChecking(false);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -72,13 +106,38 @@ export default function Admin() {
     fetchMembers();
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-    } else {
-      alert('Incorrect password!');
+    setLoginError('');
+    setLoginLoading(true);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      // Check isAdmin in Firestore
+      const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
+      if (userDoc.exists() && userDoc.data().isAdmin === true) {
+        setIsAuthenticated(true);
+        setIsAdmin(true);
+      } else {
+        await signOut(auth);
+        setLoginError('You do not have admin access. Contact the super admin.');
+      }
+    } catch (err) {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setLoginError('Invalid email or password.');
+      } else {
+        setLoginError('Login failed. Please try again.');
+      }
+    } finally {
+      setLoginLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+    setEmail('');
+    setPassword('');
   };
 
   const handleSubmit = async (e) => {
@@ -150,39 +209,99 @@ export default function Admin() {
     { value: 'bg-gradient-to-br from-red-500/30 to-red-900/30', label: 'Red' },
   ];
 
+  // ── Auth Checking ─────────────────────────────────────────────
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 flex items-center justify-center">
+        <div className="animate-spin w-12 h-12 border-4 border-yellow-400 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
   // ── Login Screen ──────────────────────────────────────────────
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-0 right-0 w-96 h-96 bg-red-500/10 rounded-full blur-3xl animate-pulse"></div>
+        </div>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 w-full max-w-md shadow-2xl"
+          className="relative z-10 bg-white/10 backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-white/20 shadow-2xl"
         >
           <div className="text-center mb-8">
-            <Image src="/tsok-logo.png" alt="TSOK" width={80} height={80} className="mx-auto mb-4 drop-shadow-xl" />
-            <h1 className="text-3xl font-bold text-white">Admin Panel</h1>
-            <p className="text-blue-200 mt-1">TSOK Portal Management</p>
+            <Image src="/tsok-logo.png" alt="TSOK" width={80} height={80} className="mx-auto mb-4 drop-shadow-2xl" />
+            <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
+            <p className="text-blue-200 text-sm mt-1">Sign in with your admin account</p>
           </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              type="password"
-              placeholder="Enter admin password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-            <button
-              type="submit"
-              className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl transition-all text-lg"
+
+          {loginError && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-red-500/20 border border-red-400/30 rounded-xl text-red-200 text-sm text-center"
             >
-              Login
-            </button>
+              {loginError}
+            </motion.div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-blue-200 text-sm font-medium block mb-2">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="admin@email.com"
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-blue-200 text-sm font-medium block mb-2">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
+              />
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={loginLoading}
+              className="w-full py-3 bg-yellow-400 text-blue-900 font-bold rounded-xl hover:bg-yellow-300 transition-colors text-lg disabled:opacity-60"
+            >
+              {loginLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : '🔐 Sign In as Admin'}
+            </motion.button>
           </form>
-          <div className="mt-4 text-center">
-            <Link href="/" className="text-blue-300 text-sm hover:text-white transition-colors">
-              Back to Portal
+
+          <div className="mt-6 pt-4 border-t border-white/10 space-y-2 text-center">
+            <Link href="/feed" className="text-blue-300 text-sm hover:text-white transition-colors block">
+              👥 Go to Community Feed
             </Link>
+            <Link href="/" className="text-blue-300 text-sm hover:text-white transition-colors block">
+              ← Back to TSOK Portal
+            </Link>
+          </div>
+
+          <div className="mt-4 p-3 bg-yellow-400/10 border border-yellow-400/20 rounded-xl">
+            <p className="text-yellow-300 text-xs text-center">
+              ⚠️ Admin access requires <strong>isAdmin: true</strong> in your Firestore user document.
+            </p>
           </div>
         </motion.div>
       </div>
@@ -218,7 +337,7 @@ export default function Admin() {
                 Community
               </Link>
               <button
-                onClick={() => setIsAuthenticated(false)}
+                onClick={handleLogout}
                 className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors text-sm"
               >
                 Logout
@@ -548,7 +667,7 @@ export default function Admin() {
       </div>
 
       {/* Footer */}
-      <div className="text-center py-6 text-blue-400 text-xs">
+      <div className="text-center py-6 text-blue-400 text-xs relative z-10">
         © 2026 TSOK | Developed by Godmisoft
       </div>
     </div>
