@@ -1,0 +1,63 @@
+{
+  "sampleWebsites": [
+    {
+      "title": "AMA eBooks",
+      "description": "Digital library for The Fraternal Order of Eagles members",
+      "url": "https://ama-ebooks.vercel.app",
+      "icon": "",
+      "category": "education",
+      "order": 1,
+      "isNew": true,
+      "style": "bg-gradient-to-br from-purple-500/20 to-pink-500/20"
+    },
+    {
+      "title": "LET Reviewer",
+      "description": "Comprehensive review materials for Licensure Examination for Teachers",
+      "url": "https://tsok-let-reviewer.vercel.app",
+      "icon": "",
+      "category": "education",
+      "order": 2,
+      "isNew": false,
+      "style": "bg-gradient-to-br from-green-500/20 to-emerald-500/20"
+    },
+    {
+      "title": "HOT Engineering Invoices",
+      "description": "Invoice management system for HOT Engineering and Construction",
+      "url": "https://hot-invoices.vercel.app",
+      "icon": "",
+      "category": "business",
+      "order": 3,
+      "isNew": false,
+      "style": "bg-gradient-to-br from-orange-500/20 to-red-500/20"
+    },
+    {
+      "title": "HebzConnect",
+      "description": "WebRTC remote desktop assistance application",
+      "url": "https://hebzconnect.vercel.app",
+      "icon": "",
+      "category": "tools",
+      "order": 4,
+      "isNew": true,
+      "style": "bg-gradient-to-br from-cyan-500/20 to-blue-500/20"
+    },
+    {
+      "title": "TSOK Learning Management",
+      "description": "Educational platform with YouTube integration",
+      "url": "https://tsok-lms.vercel.app",
+      "icon": "",
+      "category": "education",
+      "order": 5,
+      "isNew": false,
+      "style": "bg-gradient-to-br from-yellow-500/20 to-amber-500/20"
+    }
+  ],
+  "instructions": {
+    "note": "These are sample websites. Add them manually through the admin panel or import to Firestore.",
+    "howToImport": [
+      "1. Go to Firebase Console → Firestore Database",
+      "2. Create 'websites' collection",
+      "3. Add documents manually using the data above",
+      "4. Or use the admin panel at /admin to add them"
+    ]
+  }
+}

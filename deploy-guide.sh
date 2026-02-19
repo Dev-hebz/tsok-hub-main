@@ -1,0 +1,56 @@
+#!/bin/bash
+
+echo "🚀 TSOK HUB - Deployment Guide"
+echo "================================"
+echo ""
+
+echo "📋 Pre-deployment Checklist:"
+echo ""
+echo "1. ✓ Setup Firebase Project"
+echo "   - Create project at https://console.firebase.google.com/"
+echo "   - Enable Firestore Database"
+echo "   - Get Firebase config from Project Settings"
+echo ""
+
+echo "2. ✓ Configure Environment Variables"
+echo "   - Create .env.local file"
+echo "   - Add all NEXT_PUBLIC_FIREBASE_* variables"
+echo ""
+
+echo "3. ✓ Add Icons and Logo"
+echo "   - public/tsok-logo.png ✓ (Already added)"
+echo "   - public/icon-192.png (Create 192x192 icon)"
+echo "   - public/icon-512.png (Create 512x512 icon)"
+echo "   - public/favicon.ico (Create favicon)"
+echo "   - public/apple-icon.png (Create Apple icon)"
+echo ""
+
+echo "4. ✓ Test Locally"
+echo "   Run: npm install && npm run dev"
+echo ""
+
+echo "🌐 Deployment Steps:"
+echo ""
+echo "Option A: Deploy via Vercel Dashboard"
+echo "   1. Push code to GitHub"
+echo "   2. Go to vercel.com"
+echo "   3. Import GitHub repository"
+echo "   4. Add environment variables"
+echo "   5. Deploy"
+echo ""
+
+echo "Option B: Deploy via Vercel CLI"
+echo "   1. Run: npm install -g vercel"
+echo "   2. Run: vercel login"
+echo "   3. Run: vercel --prod"
+echo ""
+
+echo "🔧 Post-deployment:"
+echo "   1. Test PWA installation"
+echo "   2. Access admin panel (/admin)"
+echo "   3. Add your first website"
+echo "   4. Change admin password in code"
+echo ""
+
+echo "✅ Deployment Ready!"
+echo ""
