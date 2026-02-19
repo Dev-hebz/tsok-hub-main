@@ -95,11 +95,155 @@ const CommentItem = ({ comment, postId, currentUser, currentProfile }) => {
 };
 
 // ─── Post Component ─────────────────────────────────────────────────────────
+// ─── Image Lightbox Viewer ──────────────────────────────────────────────────
+const ImageViewer = ({ src, onClose }) => {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  // Prevent body scroll when open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  const zoom = (factor) => {
+    setScale(s => Math.min(Math.max(s * factor, 0.5), 5));
+  };
+
+  const resetZoom = () => { setScale(1); setPos({ x: 0, y: 0 }); };
+
+  // Mouse drag
+  const onMouseDown = (e) => {
+    if (scale <= 1) return;
+    setDragging(true);
+    setDragStart({ x: e.clientX - lastPos.x, y: e.clientY - lastPos.y });
+  };
+  const onMouseMove = (e) => {
+    if (!dragging) return;
+    const newPos = { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y };
+    setPos(newPos);
+    setLastPos(newPos);
+  };
+  const onMouseUp = () => setDragging(false);
+
+  // Touch pinch-to-zoom
+  const lastDist = useRef(null);
+  const onTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastDist.current) {
+        const factor = dist / lastDist.current;
+        setScale(s => Math.min(Math.max(s * factor, 0.5), 5));
+      }
+      lastDist.current = dist;
+    }
+  };
+  const onTouchEnd = () => { lastDist.current = null; };
+
+  // Scroll to zoom
+  const onWheel = (e) => {
+    e.preventDefault();
+    zoom(e.deltaY < 0 ? 1.1 : 0.9);
+  };
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[200] flex flex-col bg-black/95 backdrop-blur-sm"
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      >
+        {/* Top bar */}
+        <div className="flex items-center justify-between px-4 py-3 flex-shrink-0">
+          {/* Zoom controls */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => zoom(0.8)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all text-lg font-bold"
+            >−</button>
+            <button
+              onClick={resetZoom}
+              className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all min-w-[52px] text-center"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            <button
+              onClick={() => zoom(1.2)}
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all text-lg font-bold"
+            >+</button>
+          </div>
+          {/* Close */}
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-white/10 hover:bg-red-500/60 text-white flex items-center justify-center transition-all"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Image area */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-hidden flex items-center justify-center"
+          style={{ cursor: scale > 1 ? (dragging ? 'grabbing' : 'grab') : 'default' }}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+          onWheel={onWheel}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          <img
+            src={src}
+            alt="Full view"
+            draggable={false}
+            style={{
+              transform: `scale(${scale}) translate(${pos.x / scale}px, ${pos.y / scale}px)`,
+              transition: dragging ? 'none' : 'transform 0.15s ease',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              userSelect: 'none',
+            }}
+          />
+        </div>
+
+        {/* Bottom hint */}
+        <div className="text-center py-2 text-white/30 text-xs flex-shrink-0 hidden sm:block">
+          Scroll to zoom · Drag to pan · Esc to close
+        </div>
+        <div className="text-center py-2 text-white/30 text-xs flex-shrink-0 sm:hidden">
+          Pinch to zoom · Tap outside to close
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 const PostCard = ({ post, currentUser, currentProfile }) => {
   const [authorProfile, setAuthorProfile] = useState(null);
   const [comments, setComments] = useState([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -203,15 +347,33 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
         </div>
       )}
 
-      {/* Post Image */}
+      {/* Post Image — click to zoom */}
       {post.imageUrl && (
-        <div className="relative w-full">
-          <img
-            src={post.imageUrl}
-            alt="Post"
-            className="w-full object-cover max-h-[500px]"
-          />
-        </div>
+        <>
+          <div
+            className="w-full bg-black/20 cursor-zoom-in relative group"
+            onClick={() => setViewerOpen(true)}
+          >
+            <img
+              src={post.imageUrl}
+              alt="Post"
+              className="w-full h-auto object-contain"
+              style={{ maxHeight: '70vh' }}
+            />
+            {/* Zoom hint overlay */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/10">
+              <div className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
+                </svg>
+                Tap to zoom
+              </div>
+            </div>
+          </div>
+          {viewerOpen && (
+            <ImageViewer src={post.imageUrl} onClose={() => setViewerOpen(false)} />
+          )}
+        </>
       )}
 
       {/* Stats Row */}
@@ -651,7 +813,7 @@ export default function FeedPage() {
                       />
                       {imagePreview && (
                         <div className="relative mt-2 inline-block">
-                          <img src={imagePreview} alt="Preview" className="max-h-48 rounded-xl object-cover" />
+                          <img src={imagePreview} alt="Preview" className="max-h-48 rounded-xl object-contain w-full bg-black/20" />
                           <button
                             onClick={() => { setNewPostImage(null); setImagePreview(''); }}
                             className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-400 transition-colors"
@@ -803,7 +965,7 @@ export default function FeedPage() {
             {/* Footer */}
             <div className="text-blue-400 text-xs space-y-1 px-2">
               <p>© 2026 TSOK - Teachers-Specialists Organization Kuwait</p>
-              <p>Developed by <span className="text-yellow-400">TSOK 2026 Officer</span></p>
+              <p>Developed by <span className="text-yellow-400">Godmisoft</span></p>
             </div>
           </div>
         </div>
