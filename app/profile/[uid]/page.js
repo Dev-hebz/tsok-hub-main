@@ -9,6 +9,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Toast, ConfirmModal } from '../../../components/Modals';
 
 const formatTime = (ts) => {
   if (!ts) return '';
@@ -59,7 +60,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null });
 
   const picRef = useRef(null);
   const coverRef = useRef(null);
@@ -109,10 +111,16 @@ export default function ProfilePage() {
     }
   };
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
   };
+
+  const showConfirm = (title, message, onConfirm, type = 'danger') => {
+    setConfirmModal({ visible: true, title, message, onConfirm, type });
+  };
+
+  const closeConfirm = () => setConfirmModal(m => ({ ...m, visible: false }));
 
   const handleSaveEdit = async () => {
     if (!isOwnProfile) return;
@@ -195,15 +203,22 @@ export default function ProfilePage() {
     showToast('You are now friends! 🎉');
   };
 
-  const handleUnfriend = async () => {
-    if (!window.confirm('Remove this friend?')) return;
-    const myRef = doc(db, 'users', user.uid);
-    const theirRef = doc(db, 'users', uid);
-    await updateDoc(myRef, { friends: arrayRemove(uid) });
-    await updateDoc(theirRef, { friends: arrayRemove(user.uid) });
-    await fetchProfile();
-    refreshProfile();
-    showToast('Friend removed.');
+  const handleUnfriend = () => {
+    showConfirm(
+      'Remove Friend',
+      `Are you sure you want to remove ${profile?.firstName || 'this member'} from your friends?`,
+      async () => {
+        closeConfirm();
+        const myRef = doc(db, 'users', user.uid);
+        const theirRef = doc(db, 'users', uid);
+        await updateDoc(myRef, { friends: arrayRemove(uid) });
+        await updateDoc(theirRef, { friends: arrayRemove(user.uid) });
+        await fetchProfile();
+        refreshProfile();
+        showToast('Friend removed.', 'warning');
+      },
+      'danger'
+    );
   };
 
   if (loading || loadingProfile) {
@@ -238,18 +253,19 @@ export default function ProfilePage() {
       </div>
 
       {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 right-4 z-[100] bg-green-500 text-white px-6 py-3 rounded-2xl shadow-2xl font-semibold"
-          >
-            ✅ {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Yes, Remove"
+        cancelText="Cancel"
+        type={confirmModal.type || 'danger'}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={closeConfirm}
+      />
 
       {/* Navbar */}
       <nav className="sticky top-0 z-50 bg-blue-900/80 backdrop-blur-lg border-b border-white/10 shadow-2xl">

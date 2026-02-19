@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Toast, ConfirmModal, AlertModal } from '../../components/Modals';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 const formatTime = (ts) => {
@@ -97,6 +98,7 @@ const CommentItem = ({ comment, postId, currentUser, currentProfile }) => {
 const PostCard = ({ post, currentUser, currentProfile }) => {
   const [authorProfile, setAuthorProfile] = useState(null);
   const [comments, setComments] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [liked, setLiked] = useState(false);
@@ -151,7 +153,11 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
   };
 
   const handleDeletePost = async () => {
-    if (!window.confirm('Delete this post?')) return;
+    setConfirmDelete(true);
+  };
+
+  const confirmDeletePost = async () => {
+    setConfirmDelete(false);
     await deleteDoc(doc(db, 'posts', post.id));
   };
 
@@ -295,6 +301,18 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirm Modal */}
+      <ConfirmModal
+        visible={confirmDelete}
+        title="Delete Post"
+        message="Are you sure you want to delete this post? This cannot be undone."
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        type="danger"
+        onConfirm={confirmDeletePost}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </motion.div>
   );
 };
@@ -376,8 +394,19 @@ export default function FeedPage() {
   const [posting, setPosting] = useState(false);
   const [members, setMembers] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
-  const [activeTab, setActiveTab] = useState('feed'); // feed | people | requests
+  const [activeTab, setActiveTab] = useState('feed');
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
   const fileRef = useRef(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+  };
+
+  const showAlert = (title, message, type = 'warning') => {
+    setAlertModal({ visible: true, title, message, type });
+  };
 
   // Auth guard
   useEffect(() => {
@@ -425,7 +454,7 @@ export default function FeedPage() {
     e.preventDefault();
     if (!newPostText.trim() && !newPostImage) return;
     if (!userProfile?.canPost && !userProfile?.isAdmin) {
-      alert('Your posting permission has been disabled by admin.');
+      showAlert('Posting Disabled', 'Your posting permission has been disabled by the admin.', 'warning');
       return;
     }
     setPosting(true);
@@ -446,7 +475,7 @@ export default function FeedPage() {
       setNewPostImage(null);
       setImagePreview('');
     } catch (err) {
-      alert('Error creating post. Please try again.');
+      showAlert('Post Failed', 'Error creating post. Please check your connection and try again.', 'error');
     } finally {
       setPosting(false);
     }
@@ -476,6 +505,18 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950">
+      {/* Global Toast */}
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+
+      {/* Global Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal(m => ({ ...m, visible: false }))}
+      />
+
       {/* Animated BG */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl animate-pulse"></div>
