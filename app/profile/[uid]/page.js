@@ -22,6 +22,7 @@ const formatTime = (ts) => {
 };
 
 const Avatar = ({ user, size = 10, className = '' }) => {
+  const px = size * 4; // Tailwind unit to px (1 unit = 4px)
   const initials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
@@ -30,13 +31,16 @@ const Avatar = ({ user, size = 10, className = '' }) => {
       <img
         src={user.profilePic}
         alt={user.fullName}
-        className={`w-${size} h-${size} rounded-full object-cover border-4 border-yellow-400 ${className}`}
+        style={{ width: px, height: px, minWidth: px, minHeight: px, fontSize: px * 0.3 }}
+        className={`rounded-full object-cover border-4 border-yellow-400 flex-shrink-0 ${className}`}
       />
     );
   }
   return (
-    <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold border-4 border-yellow-400 ${className}`}
-      style={{ fontSize: `${size * 0.35}rem` }}>
+    <div
+      style={{ width: px, height: px, minWidth: px, minHeight: px, fontSize: px * 0.3 }}
+      className={`rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold border-4 border-yellow-400 flex-shrink-0 ${className}`}
+    >
       {initials}
     </div>
   );
@@ -267,9 +271,9 @@ export default function ProfilePage() {
         {/* Profile Card */}
         <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl overflow-hidden shadow-2xl mb-6">
           {/* Cover Photo */}
-          <div className="relative h-48 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500">
+          <div className="relative h-48 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 overflow-hidden">
             {profile.coverPhoto && (
-              <img src={profile.coverPhoto} alt="Cover" className="w-full h-full object-cover" />
+              <img src={profile.coverPhoto} alt="Cover" className="w-full h-full object-cover object-center" />
             )}
             {isOwnProfile && (
               <button
@@ -287,7 +291,7 @@ export default function ProfilePage() {
           <div className="px-6 pb-6">
             {/* Avatar */}
             <div className="flex items-end justify-between -mt-16 mb-4">
-              <div className="relative">
+              <div className="relative flex-shrink-0" style={{ width: 128, height: 128 }}>
                 <Avatar user={profile} size={32} />
                 {isOwnProfile && (
                   <button

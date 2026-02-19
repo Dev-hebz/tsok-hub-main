@@ -27,6 +27,7 @@ const formatTime = (ts) => {
 };
 
 const Avatar = ({ user, size = 10, className = '' }) => {
+  const px = size * 4;
   const initials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
@@ -35,12 +36,16 @@ const Avatar = ({ user, size = 10, className = '' }) => {
       <img
         src={user.profilePic}
         alt={user.fullName}
-        className={`w-${size} h-${size} rounded-full object-cover border-2 border-yellow-400 ${className}`}
+        style={{ width: px, height: px, minWidth: px, minHeight: px }}
+        className={`rounded-full object-cover border-2 border-yellow-400 flex-shrink-0 ${className}`}
       />
     );
   }
   return (
-    <div className={`w-${size} h-${size} rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold text-sm border-2 border-yellow-400 ${className}`}>
+    <div
+      style={{ width: px, height: px, minWidth: px, minHeight: px, fontSize: px * 0.3 }}
+      className={`rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold text-sm border-2 border-yellow-400 flex-shrink-0 ${className}`}
+    >
       {initials}
     </div>
   );
