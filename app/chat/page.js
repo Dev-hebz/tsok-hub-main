@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   collection, addDoc, query, orderBy, onSnapshot,
-  doc, getDoc, getDocs, serverTimestamp, where,
+  doc, getDoc, getDocs, serverTimestamp,
   updateDoc, arrayUnion
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -108,11 +108,15 @@ export default function ChatPage() {
       const chatId = getChatId(user.uid, friend.uid);
       const q = query(
         collection(db, 'chats', chatId, 'messages'),
-        where('senderId', '!=', user.uid),
-        where('read', '==', false)
+        orderBy('createdAt', 'desc')
       );
       return onSnapshot(q, snap => {
-        setUnreadCounts(prev => ({ ...prev, [friend.uid]: snap.size }));
+        // Count unread messages not sent by me
+        const count = snap.docs.filter(d => {
+          const data = d.data();
+          return data.senderId !== user.uid && data.read === false;
+        }).length;
+        setUnreadCounts(prev => ({ ...prev, [friend.uid]: count }));
       });
     });
     return () => unsubs.forEach(u => u());
