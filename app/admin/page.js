@@ -7,6 +7,7 @@ import { db, auth } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
+import { Toast, ConfirmModal, AlertModal } from '../../components/Modals';
 
 export default function Admin() {
   const [websites, setWebsites] = useState([]);
@@ -22,6 +23,19 @@ export default function Admin() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [memberSearch, setMemberSearch] = useState('');
+  const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
+  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, type: 'danger' });
+
+  const showToast = (message, type = 'success') => {
+    setToast({ visible: true, message, type });
+    setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+  };
+
+  const showConfirm = (title, message, onConfirm, type = 'danger') => {
+    setConfirmModal({ visible: true, title, message, onConfirm, type });
+  };
+
+  const closeConfirm = () => setConfirmModal(m => ({ ...m, visible: false }));
 
   const [formData, setFormData] = useState({
     title: '',
@@ -90,20 +104,30 @@ export default function Admin() {
     }
   };
 
-  const toggleMemberCanPost = async (memberId, currentValue) => {
+  const toggleMemberCanPost = async (memberId, currentValue, memberName) => {
     await updateDoc(doc(db, 'users', memberId), { canPost: !currentValue });
     fetchMembers();
+    showToast(!currentValue ? `${memberName} can now post.` : `${memberName}'s posting blocked.`, !currentValue ? 'success' : 'warning');
   };
 
-  const toggleMemberAdmin = async (memberId, currentValue) => {
+  const toggleMemberAdmin = async (memberId, currentValue, memberName) => {
     await updateDoc(doc(db, 'users', memberId), { isAdmin: !currentValue });
     fetchMembers();
+    showToast(!currentValue ? `${memberName} is now admin.` : `${memberName} removed as admin.`, 'info');
   };
 
-  const deleteMember = async (memberId) => {
-    if (!confirm('Delete this member? This cannot be undone.')) return;
-    await deleteDoc(doc(db, 'users', memberId));
-    fetchMembers();
+  const deleteMember = (memberId, memberName) => {
+    showConfirm(
+      'Delete Member',
+      `Are you sure you want to delete ${memberName || 'this member'}? This cannot be undone.`,
+      async () => {
+        closeConfirm();
+        await deleteDoc(doc(db, 'users', memberId));
+        fetchMembers();
+        showToast('Member deleted.', 'warning');
+      },
+      'danger'
+    );
   };
 
   const handleLogin = async (e) => {
@@ -145,16 +169,16 @@ export default function Admin() {
     try {
       if (editingId) {
         await updateDoc(doc(db, 'websites', editingId), formData);
-        alert('Website updated!');
+        showToast('Website updated successfully!', 'success');
       } else {
         await addDoc(collection(db, 'websites'), formData);
-        alert('Website added!');
+        showToast('Website added successfully!', 'success');
       }
       resetForm();
       fetchWebsites();
     } catch (error) {
       console.error('Error saving website:', error);
-      alert('Error saving website');
+      showToast('Error saving website. Try again.', 'error');
     }
   };
 
@@ -164,17 +188,22 @@ export default function Admin() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this website?')) {
-      try {
-        await deleteDoc(doc(db, 'websites', id));
-        alert('Website deleted!');
-        fetchWebsites();
-      } catch (error) {
-        console.error('Error deleting website:', error);
-        alert('Error deleting website');
-      }
-    }
+  const handleDelete = (id, title) => {
+    showConfirm(
+      'Delete Website',
+      `Are you sure you want to delete "${title}"?`,
+      async () => {
+        closeConfirm();
+        try {
+          await deleteDoc(doc(db, 'websites', id));
+          showToast('Website deleted!', 'warning');
+          fetchWebsites();
+        } catch (error) {
+          showToast('Error deleting website.', 'error');
+        }
+      },
+      'danger'
+    );
   };
 
   const resetForm = () => {
@@ -318,6 +347,21 @@ export default function Admin() {
   // ── Main Admin UI ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950">
+      {/* Global Toast */}
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} />
+
+      {/* Global Confirm Modal */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText="Yes, Delete"
+        cancelText="Cancel"
+        type={confirmModal.type}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={closeConfirm}
+      />
+
       {/* Header */}
       <header className="bg-white/10 backdrop-blur-lg border-b border-white/20 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
@@ -555,7 +599,7 @@ export default function Admin() {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(site.id)}
+                          onClick={() => handleDelete(site.id, site.title)}
                           className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors text-sm"
                         >
                           Delete
@@ -619,7 +663,7 @@ export default function Admin() {
                       </span>
                     )}
                     <button
-                      onClick={() => toggleMemberCanPost(member.id, member.canPost)}
+                      onClick={() => toggleMemberCanPost(member.id, member.canPost, member.firstName || member.fullName)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
                         member.canPost !== false
                           ? 'bg-green-500/20 border-green-400/30 text-green-300 hover:bg-red-500/20 hover:border-red-400/30 hover:text-red-300'
@@ -629,7 +673,7 @@ export default function Admin() {
                       {member.canPost !== false ? '✓ Can Post' : '✗ Blocked'}
                     </button>
                     <button
-                      onClick={() => toggleMemberAdmin(member.id, member.isAdmin)}
+                      onClick={() => toggleMemberAdmin(member.id, member.isAdmin, member.firstName || member.fullName)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
                         member.isAdmin
                           ? 'bg-purple-500/20 border-purple-400/30 text-purple-300'
@@ -646,7 +690,7 @@ export default function Admin() {
                       View Profile
                     </Link>
                     <button
-                      onClick={() => deleteMember(member.id)}
+                      onClick={() => deleteMember(member.id, member.fullName)}
                       className="px-3 py-1 rounded-full text-xs font-semibold bg-red-500/20 border border-red-400/30 text-red-300 hover:bg-red-500/40 transition-all"
                     >
                       Delete
