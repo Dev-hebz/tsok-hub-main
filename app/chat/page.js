@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   collection, addDoc, query, orderBy, onSnapshot,
   doc, getDoc, getDocs, serverTimestamp,
-  updateDoc, arrayUnion
+  updateDoc, deleteDoc, arrayUnion
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -56,6 +56,164 @@ const Avatar = ({ user, size = 10 }) => {
     >
       {initials}
     </div>
+  );
+};
+
+// ─── Message Bubble with Edit/Delete ────────────────────────────
+const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, friendProfile, chatId, currentUid }) => {
+  const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState(msg.text);
+  const [saving, setSaving] = useState(false);
+  const editRef = useRef(null);
+
+  useEffect(() => {
+    if (editing) editRef.current?.focus();
+  }, [editing]);
+
+  const handleEdit = async () => {
+    if (!editText.trim() || editText === msg.text) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), {
+        text: editText.trim(),
+        edited: true,
+      });
+      setEditing(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    await deleteDoc(doc(db, 'chats', chatId, 'messages', msg.id));
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEdit(); }
+    if (e.key === 'Escape') { setEditing(false); setEditText(msg.text); }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isConsecutive ? 'mt-0.5' : 'mt-3'} group`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Avatar */}
+      {!isMe && (
+        <div style={{ width: 32, height: 32, minWidth: 32 }} className="flex-shrink-0">
+          {showAvatar && <Avatar user={friendProfile} size={8} />}
+        </div>
+      )}
+
+      {/* Bubble + Actions */}
+      <div className={`flex items-end gap-1 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+
+        {/* Bubble */}
+        <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+          {editing ? (
+            <div className="flex items-center gap-1">
+              <input
+                ref={editRef}
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="px-3 py-2 rounded-2xl bg-white/20 border border-yellow-400 text-white text-sm focus:outline-none min-w-[120px] max-w-[240px]"
+              />
+              <button
+                onClick={handleEdit}
+                disabled={saving}
+                className="w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-blue-900 hover:bg-yellow-300 transition-all flex-shrink-0"
+              >
+                {saving ? (
+                  <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
+                  </svg>
+                )}
+              </button>
+              <button
+                onClick={() => { setEditing(false); setEditText(msg.text); }}
+                className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-all flex-shrink-0"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div
+              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${
+                isMe
+                  ? 'bg-yellow-400 text-blue-900 font-medium rounded-br-sm'
+                  : 'bg-white/15 text-white rounded-bl-sm backdrop-blur-sm'
+              }`}
+            >
+              {msg.text}
+              {msg.edited && <span className="text-xs opacity-50 ml-1">(edited)</span>}
+            </div>
+          )}
+
+          {/* Timestamp + read receipt */}
+          {!editing && (
+            <span className={`text-xs text-blue-400 mt-0.5 px-1 flex items-center gap-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+              {formatTimeFull(msg.createdAt)}
+              {isMe && (
+                <span className={msg.read ? 'text-yellow-400' : 'text-blue-500'}>
+                  {msg.read ? '✓✓' : '✓'}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* Edit / Delete mini icons — only my messages, only on hover */}
+        {isMe && !editing && (
+          <AnimatePresence>
+            {hovered && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.1 }}
+                className="flex flex-col gap-1 mb-5"
+              >
+                {/* Edit */}
+                <button
+                  onClick={() => setEditing(true)}
+                  title="Edit"
+                  className="w-6 h-6 rounded-full bg-white/10 hover:bg-blue-500/40 text-blue-300 hover:text-white flex items-center justify-center transition-all"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+                {/* Delete */}
+                <button
+                  onClick={handleDelete}
+                  title="Delete"
+                  className="w-6 h-6 rounded-full bg-white/10 hover:bg-red-500/40 text-blue-300 hover:text-red-300 flex items-center justify-center transition-all"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </div>
+    </motion.div>
   );
 };
 
@@ -383,49 +541,23 @@ export default function ChatPage() {
                     <p className="text-blue-300 text-sm mt-1">This is the start of your conversation.</p>
                   </div>
                 ) : (
-                  <>
-                    {messages.map((msg, idx) => {
+                  <>\n                    {messages.map((msg, idx) => {
                       const isMe = msg.senderId === user.uid;
                       const prevMsg = messages[idx - 1];
                       const showAvatar = !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
                       const isConsecutive = prevMsg && prevMsg.senderId === msg.senderId;
 
                       return (
-                        <motion.div
+                        <MessageBubble
                           key={msg.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isConsecutive ? 'mt-0.5' : 'mt-3'}`}
-                        >
-                          {/* Avatar placeholder for alignment */}
-                          {!isMe && (
-                            <div style={{ width: 32, height: 32, minWidth: 32 }} className="flex-shrink-0">
-                              {showAvatar && <Avatar user={selectedFriendProfile} size={8} />}
-                            </div>
-                          )}
-
-                          {/* Bubble */}
-                          <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                            <div
-                              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${
-                                isMe
-                                  ? 'bg-yellow-400 text-blue-900 font-medium rounded-br-sm'
-                                  : 'bg-white/15 text-white rounded-bl-sm backdrop-blur-sm'
-                              }`}
-                            >
-                              {msg.text}
-                            </div>
-                            <span className={`text-xs text-blue-400 mt-1 px-1 flex items-center gap-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                              {formatTimeFull(msg.createdAt)}
-                              {isMe && (
-                                <span className={msg.read ? 'text-yellow-400' : 'text-blue-500'}>
-                                  {msg.read ? '✓✓' : '✓'}
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </motion.div>
+                          msg={msg}
+                          isMe={isMe}
+                          showAvatar={showAvatar}
+                          isConsecutive={isConsecutive}
+                          friendProfile={selectedFriendProfile}
+                          chatId={getChatId(user.uid, selectedFriend)}
+                          currentUid={user.uid}
+                        />
                       );
                     })}
                     <div ref={messagesEndRef} />
