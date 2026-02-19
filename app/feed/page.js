@@ -556,6 +556,13 @@ export default function FeedPage() {
                 )}
               </button>
             ))}
+            {/* Chat Button */}
+            <Link
+              href="/chat"
+              className="relative px-4 py-2 rounded-xl font-semibold text-sm transition-all text-blue-200 hover:bg-white/10 hover:text-white flex items-center gap-1"
+            >
+              💬 <span className="hidden sm:inline">Chat</span>
+            </Link>
           </div>
 
           {/* User Menu */}
