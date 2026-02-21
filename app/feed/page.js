@@ -480,6 +480,73 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
 };
 
 // ─── Friend Suggestion Card ─────────────────────────────────────────────────
+// ─── Mobile Person Card (grid layout) ──────────────────────────────────────
+const MobilePersonCard = ({ member, currentUser, currentProfile, onUpdate }) => {
+  const isFriend = currentProfile?.friends?.includes(member.uid);
+  const requestSent = currentProfile?.sentRequests?.includes(member.uid);
+  const hasRequest = currentProfile?.friendRequests?.includes(member.uid);
+
+  const handleAddFriend = async () => {
+    if (!currentUser) return;
+    const myRef = doc(db, 'users', currentUser.uid);
+    const theirRef = doc(db, 'users', member.uid);
+    await updateDoc(myRef, { sentRequests: arrayUnion(member.uid) });
+    await updateDoc(theirRef, { friendRequests: arrayUnion(currentUser.uid) });
+    onUpdate();
+  };
+
+  const handleAccept = async () => {
+    const myRef = doc(db, 'users', currentUser.uid);
+    const theirRef = doc(db, 'users', member.uid);
+    await updateDoc(myRef, { friends: arrayUnion(member.uid), friendRequests: arrayRemove(member.uid) });
+    await updateDoc(theirRef, { friends: arrayUnion(currentUser.uid), sentRequests: arrayRemove(currentUser.uid) });
+    onUpdate();
+  };
+
+  const px = 56;
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col items-center text-center gap-2 hover:bg-white/10 transition-all">
+      <Link href={`/profile/${member.uid}`}>
+        {member.profilePic ? (
+          <img src={member.profilePic} alt={member.fullName}
+            style={{ width: px, height: px, minWidth: px, minHeight: px }}
+            className="rounded-full object-cover border-2 border-yellow-400" />
+        ) : (
+          <div style={{ width: px, height: px, fontSize: 18 }}
+            className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold border-2 border-yellow-400">
+            {member.fullName?.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+          </div>
+        )}
+      </Link>
+      <div className="w-full min-w-0">
+        <Link href={`/profile/${member.uid}`}
+          className="text-white text-xs font-semibold hover:text-yellow-300 transition-colors line-clamp-2 leading-tight block">
+          {member.fullName}
+        </Link>
+        <p className="text-blue-300 text-xs mt-0.5 truncate">{member.school || member.position || 'TSOK Member'}</p>
+      </div>
+      {isFriend && (
+        <span className="text-green-400 text-xs font-semibold">✓ Friends</span>
+      )}
+      {!isFriend && !requestSent && !hasRequest && (
+        <button onClick={handleAddFriend}
+          className="w-full py-1.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 text-xs font-bold rounded-xl transition-all">
+          + Add Friend
+        </button>
+      )}
+      {requestSent && (
+        <span className="text-blue-300 text-xs">Request Sent</span>
+      )}
+      {hasRequest && (
+        <button onClick={handleAccept}
+          className="w-full py-1.5 bg-green-400 hover:bg-green-300 text-blue-900 text-xs font-bold rounded-xl transition-all">
+          ✓ Accept
+        </button>
+      )}
+    </div>
+  );
+};
+
 const FriendCard = ({ member, currentUser, currentProfile, onUpdate }) => {
   const isFriend = currentProfile?.friends?.includes(member.uid);
   const requestSent = currentProfile?.sentRequests?.includes(member.uid);
@@ -866,28 +933,88 @@ export default function FeedPage() {
                   ))}
                 </AnimatePresence>
               )}
+
+              {/* People You May Know — mobile only, inside feed tab */}
+              {suggestions.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl lg:hidden">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white font-bold text-sm uppercase tracking-wide">✨ People You May Know</h3>
+                    <button onClick={() => setActiveTab('people')}
+                      className="text-yellow-400 text-xs font-semibold hover:text-yellow-300 transition-colors">
+                      See all →
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {suggestions.slice(0, 4).map(m => (
+                      <MobilePersonCard
+                        key={m.uid || m.id}
+                        member={m}
+                        currentUser={user}
+                        currentProfile={userProfile}
+                        onUpdate={refreshProfile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
           {/* ── People Tab ── */}
           {activeTab === 'people' && (
-            <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl">
-              <h2 className="text-white font-bold text-lg mb-4">👥 All Members</h2>
-              {members.length === 0 ? (
-                <p className="text-blue-300 text-center py-8">No other members yet.</p>
-              ) : (
-                <div className="space-y-1">
-                  {members.map(m => (
-                    <FriendCard
-                      key={m.uid || m.id}
-                      member={m}
-                      currentUser={user}
-                      currentProfile={userProfile}
-                      onUpdate={refreshProfile}
-                    />
-                  ))}
+            <div className="space-y-4">
+              {/* People You May Know — mobile visible */}
+              {suggestions.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl lg:hidden">
+                  <h3 className="text-white font-bold mb-3 text-sm uppercase tracking-wide">✨ People You May Know</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {suggestions.slice(0, 6).map(m => (
+                      <MobilePersonCard
+                        key={m.uid || m.id}
+                        member={m}
+                        currentUser={user}
+                        currentProfile={userProfile}
+                        onUpdate={refreshProfile}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
+
+              {/* All Members */}
+              <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl">
+                <h2 className="text-white font-bold text-lg mb-4">👥 All Members</h2>
+                {members.length === 0 ? (
+                  <p className="text-blue-300 text-center py-8">No other members yet.</p>
+                ) : (
+                  <>
+                    {/* Mobile: card grid */}
+                    <div className="grid grid-cols-2 gap-3 sm:hidden">
+                      {members.map(m => (
+                        <MobilePersonCard
+                          key={m.uid || m.id}
+                          member={m}
+                          currentUser={user}
+                          currentProfile={userProfile}
+                          onUpdate={refreshProfile}
+                        />
+                      ))}
+                    </div>
+                    {/* Desktop: list */}
+                    <div className="hidden sm:block space-y-1">
+                      {members.map(m => (
+                        <FriendCard
+                          key={m.uid || m.id}
+                          member={m}
+                          currentUser={user}
+                          currentProfile={userProfile}
+                          onUpdate={refreshProfile}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
