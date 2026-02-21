@@ -623,8 +623,6 @@ const FriendCard = ({ member, currentUser, currentProfile, onUpdate, isOnline = 
 // ─── Main Feed Page ──────────────────────────────────────────────────────────
 export default function FeedPage() {
   const { user, userProfile, loading, logout, refreshProfile } = useAuth();
-  const memberUids = members.map(m => m.uid || m.id).filter(Boolean);
-  const onlineStatuses = useOnlineStatuses(memberUids);
   const router = useRouter();
   const [posts, setPosts] = useState([]);
   const [newPostText, setNewPostText] = useState('');
@@ -637,6 +635,10 @@ export default function FeedPage() {
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
   const fileRef = useRef(null);
+
+  // Online statuses — must be after members state
+  const memberUids = members.map(m => m.uid || m.id).filter(Boolean);
+  const onlineStatuses = useOnlineStatuses(memberUids);
 
   const showToast = (message, type = 'success') => {
     setToast({ visible: true, message, type });

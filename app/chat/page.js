@@ -608,10 +608,6 @@ export default function ChatPage() {
   // Tab: 'dm' | 'groups'
   const [activeTab, setActiveTab] = useState('dm');
 
-  // Online status for all friends
-  const friendUids = friends.map(f => f.uid).filter(Boolean);
-  const onlineStatuses = useOnlineStatuses(friendUids);
-
   // DM state
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState(null);
@@ -647,6 +643,10 @@ export default function ChatPage() {
   const inputRef = useRef(null);
   const unsubMessagesRef = useRef(null);
   const unsubUnreadsRef = useRef([]);
+
+  // Online statuses — must be after friends state
+  const friendUids = friends.map(f => f.uid).filter(Boolean);
+  const onlineStatuses = useOnlineStatuses(friendUids);
 
   // Auth guard
   useEffect(() => {
