@@ -11,6 +11,7 @@ import {
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
+import { sendNotification } from '../../lib/sendNotification';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
@@ -811,12 +812,30 @@ export default function ChatPage() {
         await addDoc(collection(db, 'chats', chatId, 'messages'), {
           text, senderId: user.uid, read: false, createdAt: serverTimestamp(),
         });
+        // Push notification to recipient
+        sendNotification({
+          recipientUid: selectedFriend,
+          type: 'message',
+          senderName: userProfile?.firstName || userProfile?.fullName || 'Someone',
+          message: text.length > 60 ? text.slice(0, 60) + '...' : text,
+        });
       } else if (selectedGroup) {
         await addDoc(collection(db, 'groups', selectedGroup.id, 'messages'), {
           text, senderId: user.uid, readBy: [user.uid], createdAt: serverTimestamp(),
         });
         await updateDoc(doc(db, 'groups', selectedGroup.id), {
           lastMessage: text, lastMessageAt: serverTimestamp(),
+        });
+        // Push notification to all group members except sender
+        const otherMembers = (selectedGroup.members || []).filter(uid => uid !== user.uid);
+        otherMembers.forEach(uid => {
+          sendNotification({
+            recipientUid: uid,
+            type: 'group_message',
+            senderName: userProfile?.firstName || userProfile?.fullName || 'Someone',
+            message: text.length > 60 ? text.slice(0, 60) + '...' : text,
+            groupName: selectedGroup.name,
+          });
         });
       }
     } catch (err) {
@@ -869,7 +888,6 @@ export default function ChatPage() {
     setStartingCall(true);
     try {
       if (selectedFriend) {
-        // 1-on-1 DM call via WebRTC signaling
         const callRef = await addDoc(collection(db, 'calls'), {
           callerId: user.uid,
           calleeId: selectedFriend,
@@ -878,13 +896,15 @@ export default function ChatPage() {
           callerCandidates: [],
           calleeCandidates: [],
         });
-        setActiveCall({
-          callDoc: callRef,
-          isCaller: true,
-          otherUser: selectedFriendProfile,
+        setActiveCall({ callDoc: callRef, isCaller: true, otherUser: selectedFriendProfile });
+        // Push call notification
+        sendNotification({
+          recipientUid: selectedFriend,
+          type: 'call',
+          senderName: userProfile?.fullName || 'Someone',
+          callId: callRef.id,
         });
       } else if (selectedGroup) {
-        // Group call — create/join a shared call room for the group
         const groupCallId = `group-${selectedGroup.id}`;
         const callRef = doc(db, 'calls', groupCallId);
         await setDoc(callRef, {
@@ -898,10 +918,17 @@ export default function ChatPage() {
           callerCandidates: [],
           calleeCandidates: [],
         }, { merge: true });
-        setActiveCall({
-          callDoc: callRef,
-          isCaller: true,
-          otherUser: { fullName: selectedGroup.name, isGroup: true },
+        setActiveCall({ callDoc: callRef, isCaller: true, otherUser: { fullName: selectedGroup.name, isGroup: true } });
+        // Push call notification to all group members
+        const otherMembers = (selectedGroup.members || []).filter(uid => uid !== user.uid);
+        otherMembers.forEach(uid => {
+          sendNotification({
+            recipientUid: uid,
+            type: 'call',
+            senderName: userProfile?.fullName || 'Someone',
+            callId: groupCallId,
+            groupName: selectedGroup.name,
+          });
         });
       }
     } catch (err) {
