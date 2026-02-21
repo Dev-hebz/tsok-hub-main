@@ -965,7 +965,7 @@ export default function FeedPage() {
             {/* Footer */}
             <div className="text-blue-400 text-xs space-y-1 px-2">
               <p>© 2026 TSOK - Teachers-Specialists Organization Kuwait</p>
-              <p>Developed by <span className="text-yellow-400">TSOK 2026 Officers</span></p>
+              <p>Developed by <span className="text-yellow-400">Godmisoft</span></p>
             </div>
           </div>
         </div>
