@@ -9,6 +9,7 @@ import {
   getDoc, getDocs, serverTimestamp, where
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { uploadToCloudinary } from '../../lib/cloudinary';
 import { useRouter } from 'next/navigation';
