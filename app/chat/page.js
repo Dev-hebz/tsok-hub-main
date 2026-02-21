@@ -1132,10 +1132,12 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold truncate ${isSelected ? 'text-yellow-300' : 'text-white'}`}>{friend.fullName}</p>
-                      <p className="text-xs truncate">
+                      <p className={`text-xs truncate ${friendOnline ? 'text-green-400 font-medium' : 'text-blue-400'}`}>
                         {friendOnline
-                          ? <span className="text-green-400 font-medium">● Online</span>
-                          : <span className="text-blue-400">{friendLastSeen ? `Last seen ${formatLastSeen(friendLastSeen)}` : (friend.school || 'TSOK Member')}</span>
+                          ? '● Online'
+                          : friendLastSeen
+                            ? `Last seen ${formatLastSeen(friendLastSeen)}`
+                            : (friend.school || 'TSOK Member')
                         }
                       </p>
                     </div>
@@ -1240,13 +1242,13 @@ export default function ChatPage() {
                   <p className="text-white font-bold text-sm truncate">
                     {selectedFriend ? selectedFriendProfile?.fullName : selectedGroup?.name}
                   </p>
-                  <p className="text-blue-400 text-xs truncate">
+                  <p className={`text-xs truncate ${selectedFriend && onlineStatuses[selectedFriend]?.isOnline ? 'text-green-400 font-medium' : 'text-blue-400'}`}>
                     {selectedFriend
-                      ? (onlineStatuses[selectedFriend]?.isOnline
-                          ? <span className="text-green-400 font-medium">● Online now</span>
-                          : onlineStatuses[selectedFriend]?.lastSeen
-                            ? `Last seen ${formatLastSeen(onlineStatuses[selectedFriend].lastSeen)}`
-                            : (selectedFriendProfile?.school || 'TSOK Member'))
+                      ? onlineStatuses[selectedFriend]?.isOnline
+                        ? '● Online now'
+                        : onlineStatuses[selectedFriend]?.lastSeen
+                          ? `Last seen ${formatLastSeen(onlineStatuses[selectedFriend].lastSeen)}`
+                          : (selectedFriendProfile?.school || 'TSOK Member')
                       : `${selectedGroup?.members?.length || 0} members`}
                   </p>
                 </div>

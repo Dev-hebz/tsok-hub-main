@@ -598,14 +598,8 @@ const FriendCard = ({ member, currentUser, currentProfile, onUpdate, isOnline = 
         <Link href={`/profile/${member.uid}`} className="text-white text-sm font-semibold hover:text-yellow-300 transition-colors truncate block">
           {member.fullName}
         </Link>
-        <p className="text-blue-300 text-xs truncate">
-          {isOnline ? (
-            <span className="text-green-400 font-medium">● Online</span>
-          ) : lastSeen ? (
-            `Last seen ${formatLastSeen(lastSeen)}`
-          ) : (
-            member.school || member.position || 'TSOK Member'
-          )}
+        <p className={`text-xs truncate ${isOnline ? 'text-green-400 font-medium' : 'text-blue-300'}`}>
+          {isOnline ? '● Online' : lastSeen ? `Last seen ${formatLastSeen(lastSeen)}` : (member.school || member.position || 'TSOK Member')}
         </p>
       </div>
       {!isFriend && !requestSent && !hasRequest && (
