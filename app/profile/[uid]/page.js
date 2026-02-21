@@ -467,7 +467,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <p className="text-center text-blue-400 text-xs mt-8">© 2026 TSOK | Developed by Godmisoft</p>
+        <p className="text-center text-blue-400 text-xs mt-8">© 2026 TSOK Hub</p>
       </div>
     </div>
   );

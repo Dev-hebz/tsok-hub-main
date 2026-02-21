@@ -712,7 +712,7 @@ export default function Admin() {
 
       {/* Footer */}
       <div className="text-center py-6 text-blue-400 text-xs relative z-10">
-        © 2026 TSOK | Developed by Godmisoft
+        © 2026 TSOK Hub
       </div>
     </div>
   );

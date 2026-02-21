@@ -125,7 +125,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-blue-300 text-xs mt-6">
-          © 2026 TSOK | Developed by Godmisoft
+          © 2026 TSOK Hub
         </p>
       </motion.div>
     </div>

@@ -651,16 +651,16 @@ export default function FeedPage() {
     return () => unsub();
   }, []);
 
-  // Fetch members
+  // Fetch members — load once when user is ready
   useEffect(() => {
     if (!user) return;
     getDocs(collection(db, 'users')).then(snap => {
       const all = snap.docs
         .map(d => ({ id: d.id, uid: d.id, ...d.data() }))
-        .filter(m => m.uid !== user.uid);
+        .filter(m => (m.uid || m.id) !== user.uid);
       setMembers(all);
     });
-  }, [user, userProfile]);
+  }, [user]);
 
   // Friend requests incoming
   useEffect(() => {
@@ -937,9 +937,9 @@ export default function FeedPage() {
                 </AnimatePresence>
               )}
 
-              {/* People You May Know — mobile only, inside feed tab */}
-              {suggestions.length > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl block lg:hidden">
+              {/* People You May Know — always shown when there are members */}
+              {members.length > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-white font-bold text-sm uppercase tracking-wide">✨ People You May Know</h3>
                     <button onClick={() => setActiveTab('people')}
@@ -947,17 +947,21 @@ export default function FeedPage() {
                       See all →
                     </button>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {suggestions.slice(0, 4).map(m => (
-                      <MobilePersonCard
-                        key={m.uid || m.id}
-                        member={m}
-                        currentUser={user}
-                        currentProfile={userProfile}
-                        onUpdate={refreshProfile}
-                      />
-                    ))}
-                  </div>
+                  {suggestions.length === 0 ? (
+                    <p className="text-blue-300 text-sm text-center py-2">🎉 You know everyone!</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {suggestions.slice(0, 6).map(m => (
+                        <MobilePersonCard
+                          key={m.uid || m.id}
+                          member={m}
+                          currentUser={user}
+                          currentProfile={userProfile}
+                          onUpdate={refreshProfile}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -1095,7 +1099,6 @@ export default function FeedPage() {
             {/* Footer */}
             <div className="text-blue-400 text-xs space-y-1 px-2">
               <p>© 2026 TSOK - Teachers-Specialists Organization Kuwait</p>
-              <p>Developed by <span className="text-yellow-400">Godmisoft</span></p>
             </div>
           </div>
         </div>
