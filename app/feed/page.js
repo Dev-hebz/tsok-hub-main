@@ -656,7 +656,7 @@ export default function FeedPage() {
     if (!user) return;
     getDocs(collection(db, 'users')).then(snap => {
       const all = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ id: d.id, uid: d.id, ...d.data() }))
         .filter(m => m.uid !== user.uid);
       setMembers(all);
     });
@@ -726,11 +726,14 @@ export default function FeedPage() {
   if (!user) return null;
 
   const pendingRequests = (userProfile?.friendRequests || []).length;
-  const suggestions = members.filter(m =>
-    !(userProfile?.friends || []).includes(m.uid) &&
-    !(userProfile?.sentRequests || []).includes(m.uid) &&
-    m.uid !== user.uid
-  ).slice(0, 5);
+  const suggestions = members.filter(m => {
+    const memberId = m.uid || m.id;
+    return (
+      memberId !== user.uid &&
+      !(userProfile?.friends || []).includes(memberId) &&
+      !(userProfile?.sentRequests || []).includes(memberId)
+    );
+  }).slice(0, 6);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950">
@@ -936,7 +939,7 @@ export default function FeedPage() {
 
               {/* People You May Know — mobile only, inside feed tab */}
               {suggestions.length > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl lg:hidden">
+                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl block lg:hidden">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-white font-bold text-sm uppercase tracking-wide">✨ People You May Know</h3>
                     <button onClick={() => setActiveTab('people')}
