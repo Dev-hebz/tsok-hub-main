@@ -472,6 +472,126 @@ const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, ch
   );
 };
 
+// ─── Edit Group Modal ─────────────────────────────────────────────
+const EditGroupModal = ({ group, friends, currentUser, onClose, onSave }) => {
+  const [groupName, setGroupName] = useState(group.name);
+  const [members, setMembers] = useState(group.members || []);
+  const [saving, setSaving] = useState(false);
+
+  const toggleMember = (uid) => {
+    if (uid === currentUser.uid) return; // cant remove self (creator)
+    setMembers(m => m.includes(uid) ? m.filter(x => x !== uid) : [...m, uid]);
+  };
+
+  const handleSave = async () => {
+    if (!groupName.trim()) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'groups', group.id), {
+        name: groupName.trim(),
+        members,
+      });
+      onSave({ ...group, name: groupName.trim(), members });
+      onClose();
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  };
+
+  // All friends + existing non-friend members
+  const allCandidates = [...friends];
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-blue-900/95 border border-white/20 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h2 className="text-white font-bold">Edit Group</h2>
+          <button onClick={onClose} className="text-blue-300 hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-blue-200 text-xs font-semibold block mb-1.5">GROUP NAME</label>
+            <input value={groupName} onChange={e => setGroupName(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400" />
+          </div>
+          <div>
+            <label className="text-blue-200 text-xs font-semibold block mb-1.5">MEMBERS</label>
+            <div className="space-y-1 max-h-52 overflow-y-auto">
+              {allCandidates.map(f => {
+                const isMember = members.includes(f.uid);
+                const isCreator = f.uid === currentUser.uid;
+                return (
+                  <button key={f.uid} onClick={() => toggleMember(f.uid)} disabled={isCreator}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left ${
+                      isMember ? 'bg-yellow-400/20 border border-yellow-400/40' : 'bg-white/5 hover:bg-white/10 border border-transparent'
+                    } ${isCreator ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                    <Avatar user={f} size={8} />
+                    <span className="text-white text-sm flex-1 truncate">{f.fullName}</span>
+                    {isCreator && <span className="text-yellow-400 text-xs">creator</span>}
+                    {isMember && !isCreator && (
+                      <span className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button onClick={handleSave} disabled={!groupName.trim() || saving}
+            className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 text-blue-900 font-bold rounded-xl transition-all text-sm">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// ─── Delete Group Confirm ─────────────────────────────────────────
+const DeleteGroupConfirm = ({ group, onClose, onDeleted }) => {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteDoc(doc(db, 'groups', group.id));
+      onDeleted(group.id);
+      onClose();
+    } catch (err) { console.error(err); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-blue-900/95 border border-white/20 rounded-2xl w-full max-w-xs shadow-2xl p-6 text-center">
+        <div className="text-4xl mb-3">🗑️</div>
+        <h2 className="text-white font-bold text-lg mb-1">Delete Group?</h2>
+        <p className="text-blue-300 text-sm mb-5">
+          "<span className="text-white font-semibold">{group.name}</span>" will be permanently deleted. All messages will be lost.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all text-sm">
+            Cancel
+          </button>
+          <button onClick={handleDelete} disabled={deleting}
+            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-bold rounded-xl transition-all text-sm">
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Main Chat Page ───────────────────────────────────────────────
 export default function ChatPage() {
   const { user, userProfile, loading } = useAuth();
@@ -495,6 +615,8 @@ export default function ChatPage() {
   const [groupMemberProfiles, setGroupMemberProfiles] = useState({});
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(null);
   const [groupUnreads, setGroupUnreads] = useState({});
 
   // Shared
@@ -694,18 +816,29 @@ export default function ChatPage() {
   // Listen for incoming calls
   useEffect(() => {
     if (!user) return;
-    const q = query(
-      collection(db, 'calls'),
-      orderBy('createdAt', 'desc')
-    );
+    const q = query(collection(db, 'calls'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, async snap => {
       for (const change of snap.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
-          if (data.calleeId === user.uid && data.status === 'calling') {
+          // DM incoming call
+          if (data.calleeId === user.uid && data.status === 'calling' && data.calleeId !== 'group') {
             const callerSnap = await getDoc(doc(db, 'users', data.callerId));
             const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
             setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+          }
+          // Group incoming call — notify members except caller
+          if (data.calleeId === 'group' && data.status === 'calling' &&
+              data.callerId !== user.uid && (data.members || []).includes(user.uid)) {
+            const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+            const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
+            setIncomingCall({
+              callDoc: change.doc.ref,
+              callerProfile,
+              data,
+              isGroup: true,
+              groupName: data.groupName,
+            });
           }
           if (data.status === 'ended') {
             setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
@@ -718,22 +851,45 @@ export default function ChatPage() {
 
   // Start WebRTC call
   const startVideoCall = async () => {
-    if (startingCall || !selectedFriend) return;
+    if (startingCall) return;
     setStartingCall(true);
     try {
-      const callRef = await addDoc(collection(db, 'calls'), {
-        callerId: user.uid,
-        calleeId: selectedFriend,
-        status: 'calling',
-        createdAt: serverTimestamp(),
-        callerCandidates: [],
-        calleeCandidates: [],
-      });
-      setActiveCall({
-        callDoc: callRef,
-        isCaller: true,
-        otherUser: selectedFriendProfile,
-      });
+      if (selectedFriend) {
+        // 1-on-1 DM call via WebRTC signaling
+        const callRef = await addDoc(collection(db, 'calls'), {
+          callerId: user.uid,
+          calleeId: selectedFriend,
+          status: 'calling',
+          createdAt: serverTimestamp(),
+          callerCandidates: [],
+          calleeCandidates: [],
+        });
+        setActiveCall({
+          callDoc: callRef,
+          isCaller: true,
+          otherUser: selectedFriendProfile,
+        });
+      } else if (selectedGroup) {
+        // Group call — create/join a shared call room for the group
+        const groupCallId = `group-${selectedGroup.id}`;
+        const callRef = doc(db, 'calls', groupCallId);
+        await setDoc(callRef, {
+          callerId: user.uid,
+          calleeId: 'group',
+          groupId: selectedGroup.id,
+          groupName: selectedGroup.name,
+          members: selectedGroup.members,
+          status: 'calling',
+          createdAt: serverTimestamp(),
+          callerCandidates: [],
+          calleeCandidates: [],
+        }, { merge: true });
+        setActiveCall({
+          callDoc: callRef,
+          isCaller: true,
+          otherUser: { fullName: selectedGroup.name, isGroup: true },
+        });
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -806,7 +962,9 @@ export default function ChatPage() {
           </div>
           <div className="flex-1">
             <p className="text-white font-bold text-sm">{incomingCall.callerProfile?.fullName}</p>
-            <p className="text-blue-300 text-xs animate-pulse">📹 Incoming video call...</p>
+            <p className="text-blue-300 text-xs animate-pulse">
+              {incomingCall.isGroup ? `📹 Group call: ${incomingCall.groupName}` : '📹 Incoming video call...'}
+            </p>
           </div>
           <div className="flex gap-2">
             <button onClick={declineCall}
@@ -825,8 +983,31 @@ export default function ChatPage() {
         </motion.div>
       )}
 
-      {/* Create Group Modal */}
-      {showCreateGroup && (
+      {/* Edit Group Modal */}
+      {editingGroup && (
+        <EditGroupModal
+          group={editingGroup}
+          friends={friends}
+          currentUser={user}
+          onClose={() => setEditingGroup(null)}
+          onSave={(updated) => {
+            setGroups(prev => prev.map(g => g.id === updated.id ? updated : g));
+            if (selectedGroup?.id === updated.id) setSelectedGroup(updated);
+          }}
+        />
+      )}
+
+      {/* Delete Group Confirm */}
+      {deletingGroup && (
+        <DeleteGroupConfirm
+          group={deletingGroup}
+          onClose={() => setDeletingGroup(null)}
+          onDeleted={(id) => {
+            setGroups(prev => prev.filter(g => g.id !== id));
+            if (selectedGroup?.id === id) { setSelectedGroup(null); setGroupMessages([]); setShowSidebar(true); }
+          }}
+        />
+      )}
         <CreateGroupModal
           friends={friends}
           currentUser={user}
@@ -955,27 +1136,52 @@ export default function ChatPage() {
               ) : filteredGroups.map(group => {
                 const unread = groupUnreads[group.id] || 0;
                 const isSelected = selectedGroup?.id === group.id;
+                const isCreator = group.createdBy === user.uid;
                 return (
-                  <button key={group.id} onClick={() => selectGroup(group)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-white/5 ${
+                  <div key={group.id}
+                    className={`flex items-center border-b border-white/5 transition-all group/item ${
                       isSelected ? 'bg-yellow-400/20 border-l-4 border-l-yellow-400' : 'hover:bg-white/10'
                     }`}>
-                    <div className="relative flex-shrink-0">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm border-2 border-yellow-400">
-                        {group.name?.charAt(0).toUpperCase()}
+                    <button onClick={() => selectGroup(group)} className="flex items-center gap-3 px-4 py-3 text-left flex-1 min-w-0">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm border-2 border-yellow-400">
+                          {group.name?.charAt(0).toUpperCase()}
+                        </div>
+                        {unread > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center font-bold border border-blue-900" style={{ fontSize: 9 }}>
+                            {unread > 9 ? '9+' : unread}
+                          </span>
+                        )}
                       </div>
-                      {unread > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center font-bold border border-blue-900" style={{ fontSize: 9 }}>
-                          {unread > 9 ? '9+' : unread}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold truncate ${isSelected ? 'text-yellow-300' : 'text-white'}`}>{group.name}</p>
-                      <p className="text-blue-400 text-xs">{group.members?.length || 0} members</p>
-                    </div>
-                    {unread > 0 && <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>}
-                  </button>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-semibold truncate ${isSelected ? 'text-yellow-300' : 'text-white'}`}>{group.name}</p>
+                        <p className="text-blue-400 text-xs">{group.members?.length || 0} members</p>
+                      </div>
+                      {unread > 0 && <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>}
+                    </button>
+
+                    {/* Edit/Delete — creator only, show on hover */}
+                    {isCreator && (
+                      <div className="flex gap-1 pr-2 opacity-0 group-hover/item:opacity-100 transition-opacity flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingGroup(group); }}
+                          title="Edit group"
+                          className="w-6 h-6 rounded-full bg-white/10 hover:bg-blue-500/50 text-blue-300 hover:text-white flex items-center justify-center transition-all">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeletingGroup(group); }}
+                          title="Delete group"
+                          className="w-6 h-6 rounded-full bg-white/10 hover:bg-red-500/50 text-blue-300 hover:text-red-300 flex items-center justify-center transition-all">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 );
               })
             )}
@@ -1019,8 +1225,7 @@ export default function ChatPage() {
                   </p>
                 </div>
 
-                {/* Video Call Button — DM only */}
-                {selectedFriend && (
+                {/* Video Call Button — DM & Group */}
                 <button onClick={startVideoCall} disabled={startingCall}
                   title="Start Video Call"
                   className="w-8 h-8 rounded-xl bg-green-500/20 hover:bg-green-500/40 text-green-400 hover:text-green-300 flex items-center justify-center transition-all disabled:opacity-50 flex-shrink-0">
@@ -1035,7 +1240,6 @@ export default function ChatPage() {
                     </svg>
                   )}
                 </button>
-                )}
 
                 {selectedFriend && (
                   <Link href={`/profile/${selectedFriend}`}
