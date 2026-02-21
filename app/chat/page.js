@@ -1008,6 +1008,9 @@ export default function ChatPage() {
           }}
         />
       )}
+
+      {/* Create Group Modal */}
+      {showCreateGroup && (
         <CreateGroupModal
           friends={friends}
           currentUser={user}
