@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
+import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
@@ -22,22 +23,29 @@ const formatTimeFull = (ts) => {
   return date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
 };
 
-const Avatar = ({ user, size = 10 }) => {
+const Avatar = ({ user, size = 10, isOnline = false, showStatus = false }) => {
   const px = size * 4;
   const initials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
-  if (user?.profilePic) {
-    return (
-      <img src={user.profilePic} alt={user.fullName}
-        style={{ width: px, height: px, minWidth: px, minHeight: px }}
-        className="rounded-full object-cover border-2 border-yellow-400 flex-shrink-0" />
-    );
-  }
-  return (
+  const dotSize = Math.max(8, px * 0.28);
+  const avatar = user?.profilePic ? (
+    <img src={user.profilePic} alt={user.fullName}
+      style={{ width: px, height: px, minWidth: px, minHeight: px }}
+      className="rounded-full object-cover border-2 border-yellow-400 flex-shrink-0" />
+  ) : (
     <div style={{ width: px, height: px, minWidth: px, minHeight: px, fontSize: Math.max(10, px * 0.3) }}
       className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold border-2 border-yellow-400 flex-shrink-0">
       {initials}
+    </div>
+  );
+
+  if (!showStatus) return avatar;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: px, height: px }}>
+      {avatar}
+      <span style={{ width: dotSize, height: dotSize, bottom: 0, right: 0, border: '2px solid #1e3a5f' }}
+        className={`absolute rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-500'}`} />
     </div>
   );
 };
@@ -600,6 +608,10 @@ export default function ChatPage() {
   // Tab: 'dm' | 'groups'
   const [activeTab, setActiveTab] = useState('dm');
 
+  // Online status for all friends
+  const friendUids = friends.map(f => f.uid).filter(Boolean);
+  const onlineStatuses = useOnlineStatuses(friendUids);
+
   // DM state
   const [friends, setFriends] = useState([]);
   const [selectedFriend, setSelectedFriend] = useState(null);
@@ -1103,13 +1115,15 @@ export default function ChatPage() {
               ) : filteredFriends.map(friend => {
                 const unread = unreadCounts[friend.uid] || 0;
                 const isSelected = selectedFriend === friend.uid;
+                const friendOnline = onlineStatuses[friend.uid]?.isOnline || false;
+                const friendLastSeen = onlineStatuses[friend.uid]?.lastSeen;
                 return (
                   <button key={friend.uid} onClick={() => selectFriend(friend.uid)}
                     className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-b border-white/5 ${
                       isSelected ? 'bg-yellow-400/20 border-l-4 border-l-yellow-400' : 'hover:bg-white/10'
                     }`}>
                     <div className="relative flex-shrink-0">
-                      <Avatar user={friend} size={10} />
+                      <Avatar user={friend} size={10} showStatus isOnline={friendOnline} />
                       {unread > 0 && (
                         <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center font-bold border border-blue-900" style={{ fontSize: 9 }}>
                           {unread > 9 ? '9+' : unread}
@@ -1118,7 +1132,12 @@ export default function ChatPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-semibold truncate ${isSelected ? 'text-yellow-300' : 'text-white'}`}>{friend.fullName}</p>
-                      <p className="text-blue-400 text-xs truncate">{friend.school || 'TSOK Member'}</p>
+                      <p className="text-xs truncate">
+                        {friendOnline
+                          ? <span className="text-green-400 font-medium">● Online</span>
+                          : <span className="text-blue-400">{friendLastSeen ? `Last seen ${formatLastSeen(friendLastSeen)}` : (friend.school || 'TSOK Member')}</span>
+                        }
+                      </p>
                     </div>
                     {unread > 0 && <span className="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>}
                   </button>
@@ -1223,7 +1242,11 @@ export default function ChatPage() {
                   </p>
                   <p className="text-blue-400 text-xs truncate">
                     {selectedFriend
-                      ? (selectedFriendProfile?.school || 'TSOK Member')
+                      ? (onlineStatuses[selectedFriend]?.isOnline
+                          ? <span className="text-green-400 font-medium">● Online now</span>
+                          : onlineStatuses[selectedFriend]?.lastSeen
+                            ? `Last seen ${formatLastSeen(onlineStatuses[selectedFriend].lastSeen)}`
+                            : (selectedFriendProfile?.school || 'TSOK Member'))
                       : `${selectedGroup?.members?.length || 0} members`}
                   </p>
                 </div>

@@ -7,7 +7,7 @@ import {
   getDoc, getDocs, serverTimestamp, where
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
-import { useAuth } from '../../lib/AuthContext';
+import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { uploadToCloudinary } from '../../lib/cloudinary';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,27 +27,41 @@ const formatTime = (ts) => {
   return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 };
 
-const Avatar = ({ user, size = 10, className = '' }) => {
+const Avatar = ({ user, size = 10, className = '', isOnline = false, showStatus = false }) => {
   const px = size * 4;
   const initials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
-  if (user?.profilePic) {
-    return (
-      <img
-        src={user.profilePic}
-        alt={user.fullName}
-        style={{ width: px, height: px, minWidth: px, minHeight: px }}
-        className={`rounded-full object-cover border-2 border-yellow-400 flex-shrink-0 ${className}`}
-      />
-    );
-  }
-  return (
+  const dotSize = Math.max(8, px * 0.28);
+  const avatar = user?.profilePic ? (
+    <img
+      src={user.profilePic}
+      alt={user.fullName}
+      style={{ width: px, height: px, minWidth: px, minHeight: px }}
+      className={`rounded-full object-cover border-2 border-yellow-400 flex-shrink-0 ${className}`}
+    />
+  ) : (
     <div
       style={{ width: px, height: px, minWidth: px, minHeight: px, fontSize: px * 0.3 }}
       className={`rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-blue-900 font-bold text-sm border-2 border-yellow-400 flex-shrink-0 ${className}`}
     >
       {initials}
+    </div>
+  );
+
+  if (!showStatus) return avatar;
+
+  return (
+    <div className="relative flex-shrink-0" style={{ width: px, height: px }}>
+      {avatar}
+      <span
+        style={{
+          width: dotSize, height: dotSize,
+          bottom: 0, right: 0,
+          border: '2px solid #1e3a5f',
+        }}
+        className={`absolute rounded-full ${isOnline ? 'bg-green-400' : 'bg-gray-500'}`}
+      />
     </div>
   );
 };
@@ -547,7 +561,7 @@ const MobilePersonCard = ({ member, currentUser, currentProfile, onUpdate }) => 
   );
 };
 
-const FriendCard = ({ member, currentUser, currentProfile, onUpdate }) => {
+const FriendCard = ({ member, currentUser, currentProfile, onUpdate, isOnline = false, lastSeen = null }) => {
   const isFriend = currentProfile?.friends?.includes(member.uid);
   const requestSent = currentProfile?.sentRequests?.includes(member.uid);
   const hasRequest = currentProfile?.friendRequests?.includes(member.uid);
@@ -578,36 +592,36 @@ const FriendCard = ({ member, currentUser, currentProfile, onUpdate }) => {
   return (
     <div className="flex items-center gap-3 p-3 hover:bg-white/5 rounded-xl transition-all">
       <Link href={`/profile/${member.uid}`}>
-        <Avatar user={member} size={10} />
+        <Avatar user={member} size={10} showStatus isOnline={isOnline} />
       </Link>
       <div className="flex-1 min-w-0">
         <Link href={`/profile/${member.uid}`} className="text-white text-sm font-semibold hover:text-yellow-300 transition-colors truncate block">
           {member.fullName}
         </Link>
-        <p className="text-blue-300 text-xs truncate">{member.school || member.position || 'TSOK Member'}</p>
+        <p className="text-blue-300 text-xs truncate">
+          {isOnline ? (
+            <span className="text-green-400 font-medium">● Online</span>
+          ) : lastSeen ? (
+            `Last seen ${formatLastSeen(lastSeen)}`
+          ) : (
+            member.school || member.position || 'TSOK Member'
+          )}
+        </p>
       </div>
       {!isFriend && !requestSent && !hasRequest && (
-        <button
-          onClick={handleAddFriend}
-          className="px-3 py-1 bg-yellow-400 text-blue-900 text-xs font-semibold rounded-full hover:bg-yellow-300 transition-colors whitespace-nowrap"
-        >
+        <button onClick={handleAddFriend}
+          className="px-3 py-1 bg-yellow-400 text-blue-900 text-xs font-semibold rounded-full hover:bg-yellow-300 transition-colors whitespace-nowrap">
           + Add
         </button>
       )}
-      {requestSent && (
-        <span className="text-blue-300 text-xs">Sent</span>
-      )}
+      {requestSent && <span className="text-blue-300 text-xs">Sent</span>}
       {hasRequest && (
-        <button
-          onClick={handleAccept}
-          className="px-3 py-1 bg-green-400 text-blue-900 text-xs font-semibold rounded-full hover:bg-green-300 transition-colors whitespace-nowrap"
-        >
+        <button onClick={handleAccept}
+          className="px-3 py-1 bg-green-400 text-blue-900 text-xs font-semibold rounded-full hover:bg-green-300 transition-colors whitespace-nowrap">
           Accept
         </button>
       )}
-      {isFriend && (
-        <span className="text-green-400 text-xs">✓ Friends</span>
-      )}
+      {isFriend && <span className="text-green-400 text-xs">✓</span>}
     </div>
   );
 };
@@ -615,6 +629,8 @@ const FriendCard = ({ member, currentUser, currentProfile, onUpdate }) => {
 // ─── Main Feed Page ──────────────────────────────────────────────────────────
 export default function FeedPage() {
   const { user, userProfile, loading, logout, refreshProfile } = useAuth();
+  const memberUids = members.map(m => m.uid || m.id).filter(Boolean);
+  const onlineStatuses = useOnlineStatuses(memberUids);
   const router = useRouter();
   const [posts, setPosts] = useState([]);
   const [newPostText, setNewPostText] = useState('');
@@ -1016,6 +1032,8 @@ export default function FeedPage() {
                           currentUser={user}
                           currentProfile={userProfile}
                           onUpdate={refreshProfile}
+                          isOnline={onlineStatuses[m.uid || m.id]?.isOnline || false}
+                          lastSeen={onlineStatuses[m.uid || m.id]?.lastSeen}
                         />
                       ))}
                     </div>
@@ -1043,6 +1061,8 @@ export default function FeedPage() {
                       currentUser={user}
                       currentProfile={userProfile}
                       onUpdate={refreshProfile}
+                      isOnline={onlineStatuses[m.uid || m.id]?.isOnline || false}
+                      lastSeen={onlineStatuses[m.uid || m.id]?.lastSeen}
                     />
                   ))}
                 </div>
@@ -1068,6 +1088,8 @@ export default function FeedPage() {
                       currentUser={user}
                       currentProfile={userProfile}
                       onUpdate={refreshProfile}
+                      isOnline={onlineStatuses[m.uid || m.id]?.isOnline || false}
+                      lastSeen={onlineStatuses[m.uid || m.id]?.lastSeen}
                     />
                   ))}
                 </div>
