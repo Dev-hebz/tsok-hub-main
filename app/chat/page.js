@@ -61,16 +61,37 @@ const ICE_SERVERS = {
   ],
 };
 
+// ─── Video Filters ────────────────────────────────────────────────
+const VIDEO_FILTERS = [
+  { id: 'normal',   label: 'Normal',   icon: '🎥', css: 'none' },
+  { id: 'beauty',   label: 'Beauty',   icon: '✨', css: 'brightness(1.08) contrast(0.92) saturate(1.1)' },
+  { id: 'smooth',   label: 'Smooth',   icon: '🌸', css: 'brightness(1.12) contrast(0.88) saturate(0.95)' },
+  { id: 'warm',     label: 'Warm',     icon: '🌅', css: 'brightness(1.05) saturate(1.3) sepia(0.15) hue-rotate(-10deg)' },
+  { id: 'cool',     label: 'Cool',     icon: '❄️', css: 'brightness(1.02) saturate(0.9) hue-rotate(15deg)' },
+  { id: 'vivid',    label: 'Vivid',    icon: '🌈', css: 'brightness(1.05) contrast(1.15) saturate(1.5)' },
+  { id: 'soft',     label: 'Soft',     icon: '🌙', css: 'brightness(0.95) contrast(0.85) saturate(0.9)' },
+  { id: 'bw',       label: 'B&W',      icon: '⬛', css: 'grayscale(1) contrast(1.1)' },
+  { id: 'vintage',  label: 'Vintage',  icon: '📷', css: 'sepia(0.5) contrast(0.9) brightness(0.95) saturate(0.8)' },
+  { id: 'bright',   label: 'Bright',   icon: '☀️', css: 'brightness(1.25) contrast(1.05) saturate(1.1)' },
+];
+
 const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) => {
-  const localVideoRef = useRef(null);
+  const localVideoRef = useRef(null);   // shows raw camera (hidden)
+  const canvasRef = useRef(null);       // filtered canvas (hidden, streams to WebRTC)
+  const previewRef = useRef(null);      // PIP preview (shows canvas output)
   const remoteVideoRef = useRef(null);
   const pcRef = useRef(null);
-  const localStreamRef = useRef(null);
+  const localStreamRef = useRef(null);  // raw camera stream
+  const canvasStreamRef = useRef(null); // filtered canvas stream sent via WebRTC
+  const animFrameRef = useRef(null);    // requestAnimationFrame id
+  const activeFilterRef = useRef('normal'); // ref so RAF loop gets latest value
 
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [callStatus, setCallStatus] = useState(isCaller ? 'calling' : 'connecting');
   const [callDuration, setCallDuration] = useState(0);
+  const [activeFilter, setActiveFilter] = useState('normal');
+  const [showFilters, setShowFilters] = useState(false);
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -82,7 +103,16 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     };
   }, []);
 
-  // Start timer when connected
+  // Sync filter ref so canvas loop always has latest value
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+    // Also apply to canvas element for immediate visual on preview
+    if (canvasRef.current) {
+      const f = VIDEO_FILTERS.find(f => f.id === activeFilter);
+      canvasRef.current.style.filter = f?.css || 'none';
+    }
+  }, [activeFilter]);
+
   useEffect(() => {
     if (callStatus === 'connected') {
       timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
@@ -92,24 +122,69 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const formatDuration = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
+  // Canvas render loop — draws video frame to canvas every animation frame
+  const startCanvasLoop = (videoEl, canvas) => {
+    const ctx = canvas.getContext('2d');
+    const draw = () => {
+      if (videoEl.readyState >= 2) {
+        canvas.width = videoEl.videoWidth || 640;
+        canvas.height = videoEl.videoHeight || 480;
+        // Apply filter via canvas 2D context
+        const f = VIDEO_FILTERS.find(f => f.id === activeFilterRef.current);
+        ctx.filter = f?.css === 'none' ? 'none' : (f?.css || 'none');
+        // Mirror horizontally (selfie view)
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      }
+      animFrameRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+  };
+
   const cleanup = () => {
+    cancelAnimationFrame(animFrameRef.current);
     clearInterval(timerRef.current);
     if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+    if (canvasStreamRef.current) canvasStreamRef.current.getTracks().forEach(t => t.stop());
     if (pcRef.current) pcRef.current.close();
-    // Mark call ended in Firestore
     updateDoc(callDoc, { status: 'ended' }).catch(() => {});
   };
 
   const initCall = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // 1. Get raw camera stream
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
+      // 2. Attach raw stream to hidden video element
+      const videoEl = localVideoRef.current;
+      videoEl.srcObject = stream;
+      await videoEl.play().catch(() => {});
+
+      // 3. Start canvas render loop
+      const canvas = canvasRef.current;
+      startCanvasLoop(videoEl, canvas);
+
+      // 4. Capture canvas as stream (30fps)
+      const canvasStream = canvas.captureStream(30);
+      canvasStreamRef.current = canvasStream;
+
+      // 5. Add audio track from original stream to canvas stream
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) canvasStream.addTrack(audioTrack);
+
+      // 6. Show preview using canvas stream
+      if (previewRef.current) {
+        previewRef.current.srcObject = canvasStream;
+      }
+
+      // 7. Setup WebRTC with canvas stream (filtered video goes to other side)
       const pc = new RTCPeerConnection(ICE_SERVERS);
       pcRef.current = pc;
-
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+      canvasStream.getTracks().forEach(t => pc.addTrack(t, canvasStream));
 
       pc.ontrack = (e) => {
         if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
@@ -123,12 +198,9 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
       };
 
       if (isCaller) {
-        // Create offer
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await updateDoc(callDoc, { offer: { type: offer.type, sdp: offer.sdp }, status: 'calling' });
-
-        // Listen for answer
         const unsub = onSnapshot(callDoc, async snap => {
           const data = snap.data();
           if (!data) return;
@@ -144,7 +216,6 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
           });
         });
       } else {
-        // Answer the call
         const snap = await getDoc(callDoc);
         const data = snap.data();
         if (data?.offer) {
@@ -153,7 +224,6 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
           await pc.setLocalDescription(answer);
           await updateDoc(callDoc, { answer: { type: answer.type, sdp: answer.sdp }, status: 'answered' });
         }
-        // Listen for caller candidates + end
         const unsub = onSnapshot(callDoc, async snap => {
           const data = snap.data();
           if (!data) return;
@@ -184,6 +254,310 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const handleEnd = () => { cleanup(); onClose(); };
 
+  const currentFilter = VIDEO_FILTERS.find(f => f.id === activeFilter);
+
+  return (
+    <div className="fixed inset-0 z-[300] bg-gray-950 flex flex-col">
+      {/* Hidden raw video + canvas (off-screen processing) */}
+      <video ref={localVideoRef} autoPlay playsInline muted
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+      <canvas ref={canvasRef}
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-blue-900/60 backdrop-blur flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${callStatus === 'connected' ? 'bg-green-400' : 'bg-yellow-400 animate-pulse'}`}></span>
+          <span className="text-white text-sm font-semibold">
+            {callStatus === 'calling' ? `Calling ${otherUser?.fullName?.split(' ')[0]}...` :
+             callStatus === 'connecting' ? 'Connecting...' :
+             callStatus === 'connected' ? formatDuration(callDuration) :
+             callStatus === 'error' ? 'Camera/mic error' : ''}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {activeFilter !== 'normal' && (
+            <span className="text-yellow-400 text-xs font-semibold bg-yellow-400/20 px-2 py-0.5 rounded-full">
+              {currentFilter?.icon} {currentFilter?.label}
+            </span>
+          )}
+          <span className="text-blue-300 text-xs">TSOK Hub</span>
+        </div>
+      </div>
+
+      {/* Videos */}
+      <div className="flex-1 relative bg-gray-950 overflow-hidden">
+        {/* Remote video — full screen */}
+        <video ref={remoteVideoRef} autoPlay playsInline
+          className="w-full h-full object-cover" />
+
+        {callStatus !== 'connected' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <Avatar user={otherUser} size={24} />
+            <p className="text-white mt-4 font-semibold">{otherUser?.fullName}</p>
+            <p className="text-blue-300 text-sm mt-1 animate-pulse">
+              {callStatus === 'calling' ? 'Ringing...' : 'Connecting...'}
+            </p>
+          </div>
+        )}
+
+        {/* Local PIP — shows filtered canvas stream preview */}
+        <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-36 sm:h-48 rounded-2xl overflow-hidden border-2 border-yellow-400 shadow-2xl bg-gray-800">
+          {camOn ? (
+            <video ref={previewRef} autoPlay playsInline muted
+              className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+              <Avatar user={currentUser} size={10} />
+            </div>
+          )}
+          {activeFilter !== 'normal' && camOn && (
+            <div className="absolute bottom-1 left-1 text-xs bg-black/70 rounded-full px-1.5 py-0.5 text-white">
+              {currentFilter?.icon}
+            </div>
+          )}
+        </div>
+
+        {/* Filter Panel */}
+        {showFilters && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-900/97 backdrop-blur-lg border-t border-white/10 pb-2">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <p className="text-white text-sm font-semibold">✨ Filters & Beauty</p>
+              <button onClick={() => setShowFilters(false)} className="text-yellow-400 text-xs font-semibold">Done</button>
+            </div>
+            <div className="flex gap-2 px-3 overflow-x-auto pb-1">
+              {VIDEO_FILTERS.map(filter => (
+                <button
+                  key={filter.id}
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
+                    activeFilter === filter.id
+                      ? 'bg-yellow-400/30 border-2 border-yellow-400'
+                      : 'bg-white/10 border-2 border-transparent hover:bg-white/20'
+                  }`}
+                  style={{ minWidth: 64 }}
+                >
+                  <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center text-xl relative"
+                    style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', filter: filter.css === 'none' ? 'none' : filter.css }}>
+                    <span>{filter.icon}</span>
+                  </div>
+                  <span className={`text-xs font-medium ${activeFilter === filter.id ? 'text-yellow-400' : 'text-blue-200'}`}>
+                    {filter.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-3 py-5 bg-gray-900 flex-shrink-0 px-4">
+        {/* Mic */}
+        <button onClick={toggleMic}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${micOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
+          {micOn ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Filter button */}
+        <button onClick={() => setShowFilters(p => !p)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-lg ${
+            showFilters || activeFilter !== 'normal'
+              ? 'bg-yellow-400/40 border-2 border-yellow-400 text-yellow-300'
+              : 'bg-white/20 hover:bg-white/30 text-white'
+          }`}>
+          ✨
+        </button>
+
+        {/* End call */}
+        <button onClick={handleEnd}
+          className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-xl">
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z"/>
+          </svg>
+        </button>
+
+        {/* Camera toggle */}
+        <button onClick={toggleCam}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${camOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
+          {camOn ? (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+          )}
+        </button>
+
+        {/* Flip camera */}
+        <button onClick={async () => {
+          if (!localStreamRef.current) return;
+          const currentTrack = localStreamRef.current.getVideoTracks()[0];
+          const currentFacing = currentTrack?.getSettings()?.facingMode || 'user';
+          const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+          try {
+            const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing, width: 640, height: 480 }, audio: false });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            // Replace in local stream
+            currentTrack.stop();
+            localStreamRef.current.removeTrack(currentTrack);
+            localStreamRef.current.addTrack(newVideoTrack);
+            // Update hidden video source
+            if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+          } catch (e) { console.error('Flip cam error:', e); }
+        }}
+          className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) => {
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const pcRef = useRef(null);
+  const localStreamRef = useRef(null);
+
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
+  const [callStatus, setCallStatus] = useState(isCaller ? 'calling' : 'connecting');
+  const [callDuration, setCallDuration] = useState(0);
+  const [activeFilter, setActiveFilter] = useState('normal');
+  const [showFilters, setShowFilters] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    initCall();
+    return () => {
+      document.body.style.overflow = '';
+      cleanup();
+    };
+  }, []);
+
+  // Apply CSS filter to local video
+  useEffect(() => {
+    if (localVideoRef.current) {
+      const f = VIDEO_FILTERS.find(f => f.id === activeFilter);
+      localVideoRef.current.style.filter = f?.css || 'none';
+    }
+  }, [activeFilter]);
+
+  useEffect(() => {
+    if (callStatus === 'connected') {
+      timerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [callStatus]);
+
+  const formatDuration = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+
+  const cleanup = () => {
+    clearInterval(timerRef.current);
+    if (localStreamRef.current) localStreamRef.current.getTracks().forEach(t => t.stop());
+    if (pcRef.current) pcRef.current.close();
+    updateDoc(callDoc, { status: 'ended' }).catch(() => {});
+  };
+
+  const initCall = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStreamRef.current = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        // Apply initial filter
+        const f = VIDEO_FILTERS.find(f => f.id === activeFilter);
+        localVideoRef.current.style.filter = f?.css || 'none';
+      }
+
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      pcRef.current = pc;
+      stream.getTracks().forEach(t => pc.addTrack(t, stream));
+
+      pc.ontrack = (e) => {
+        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0];
+        setCallStatus('connected');
+      };
+
+      pc.onicecandidate = async (e) => {
+        if (!e.candidate) return;
+        const field = isCaller ? 'callerCandidates' : 'calleeCandidates';
+        await updateDoc(callDoc, { [field]: arrayUnion(e.candidate.toJSON()) });
+      };
+
+      if (isCaller) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await updateDoc(callDoc, { offer: { type: offer.type, sdp: offer.sdp }, status: 'calling' });
+        const unsub = onSnapshot(callDoc, async snap => {
+          const data = snap.data();
+          if (!data) return;
+          if (data.status === 'ended') { unsub(); onClose(); return; }
+          if (data.answer && !pc.currentRemoteDescription) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          }
+          (data.calleeCandidates || []).forEach(c => {
+            if (!pc._addedCandidates?.includes(JSON.stringify(c))) {
+              pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+              pc._addedCandidates = [...(pc._addedCandidates || []), JSON.stringify(c)];
+            }
+          });
+        });
+      } else {
+        const snap = await getDoc(callDoc);
+        const data = snap.data();
+        if (data?.offer) {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await updateDoc(callDoc, { answer: { type: answer.type, sdp: answer.sdp }, status: 'answered' });
+        }
+        const unsub = onSnapshot(callDoc, async snap => {
+          const data = snap.data();
+          if (!data) return;
+          if (data.status === 'ended') { unsub(); onClose(); return; }
+          (data.callerCandidates || []).forEach(c => {
+            if (!pc._addedCandidates?.includes(JSON.stringify(c))) {
+              pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+              pc._addedCandidates = [...(pc._addedCandidates || []), JSON.stringify(c)];
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.error('Call error:', err);
+      setCallStatus('error');
+    }
+  };
+
+  const toggleMic = () => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setMicOn(track.enabled); }
+  };
+
+  const toggleCam = () => {
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setCamOn(track.enabled); }
+  };
+
+  const handleEnd = () => { cleanup(); onClose(); };
+
+  const currentFilter = VIDEO_FILTERS.find(f => f.id === activeFilter);
+
   return (
     <div className="fixed inset-0 z-[300] bg-gray-950 flex flex-col">
       {/* Header */}
@@ -197,17 +571,23 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
              callStatus === 'error' ? 'Camera/mic error' : ''}
           </span>
         </div>
-        <span className="text-blue-300 text-xs">TSOK Hub Call</span>
+        <div className="flex items-center gap-2">
+          {activeFilter !== 'normal' && (
+            <span className="text-yellow-400 text-xs font-semibold bg-yellow-400/20 px-2 py-0.5 rounded-full">
+              {currentFilter?.icon} {currentFilter?.label}
+            </span>
+          )}
+          <span className="text-blue-300 text-xs">TSOK Hub</span>
+        </div>
       </div>
 
       {/* Videos */}
       <div className="flex-1 relative bg-gray-950 overflow-hidden">
-        {/* Remote video — full screen */}
+        {/* Remote video */}
         <video ref={remoteVideoRef} autoPlay playsInline
           className="w-full h-full object-cover"
           style={{ transform: 'scaleX(-1)' }} />
 
-        {/* Remote avatar if no video yet */}
         {callStatus !== 'connected' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <Avatar user={otherUser} size={24} />
@@ -218,7 +598,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
           </div>
         )}
 
-        {/* Local video — pip */}
+        {/* Local video PIP */}
         <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-36 sm:h-48 rounded-2xl overflow-hidden border-2 border-yellow-400 shadow-2xl bg-gray-800">
           <video ref={localVideoRef} autoPlay playsInline muted
             className="w-full h-full object-cover"
@@ -228,23 +608,76 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
               <Avatar user={currentUser} size={10} />
             </div>
           )}
+          {/* Filter badge on PIP */}
+          {activeFilter !== 'normal' && camOn && (
+            <div className="absolute bottom-1 left-1 text-xs bg-black/60 rounded-full px-1.5 py-0.5 text-white">
+              {currentFilter?.icon}
+            </div>
+          )}
         </div>
+
+        {/* Filter Panel — slides up from bottom */}
+        {showFilters && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-lg border-t border-white/10 pb-2">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <p className="text-white text-sm font-semibold">✨ Filters & Beauty</p>
+              <button onClick={() => setShowFilters(false)} className="text-blue-300 text-xs hover:text-white">Done</button>
+            </div>
+            <div className="flex gap-2 px-3 overflow-x-auto pb-1 scrollbar-hide">
+              {VIDEO_FILTERS.map(filter => (
+                <button
+                  key={filter.id}
+                  onClick={() => setActiveFilter(filter.id)}
+                  className={`flex-shrink-0 flex flex-col items-center gap-1 p-2 rounded-xl transition-all ${
+                    activeFilter === filter.id
+                      ? 'bg-yellow-400/30 border-2 border-yellow-400'
+                      : 'bg-white/10 border-2 border-transparent hover:bg-white/20'
+                  }`}
+                  style={{ minWidth: 64 }}
+                >
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gray-700 flex items-center justify-center text-2xl relative">
+                    {/* Filter preview swatch */}
+                    <div className="absolute inset-0 rounded-xl"
+                      style={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        filter: filter.css === 'none' ? 'none' : filter.css,
+                      }} />
+                    <span className="relative z-10 text-lg">{filter.icon}</span>
+                  </div>
+                  <span className={`text-xs font-medium ${activeFilter === filter.id ? 'text-yellow-400' : 'text-blue-200'}`}>
+                    {filter.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 py-5 bg-gray-900 flex-shrink-0">
+      <div className="flex items-center justify-center gap-3 py-5 bg-gray-900 flex-shrink-0 px-4">
         {/* Mic */}
         <button onClick={toggleMic}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${micOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}>
+          className={`w-13 h-13 w-12 h-12 rounded-full flex items-center justify-center transition-all ${micOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
           {micOn ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
             </svg>
           ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/>
             </svg>
           )}
+        </button>
+
+        {/* Filter button */}
+        <button onClick={() => setShowFilters(p => !p)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-lg ${
+            showFilters || activeFilter !== 'normal'
+              ? 'bg-yellow-400/40 border-2 border-yellow-400 text-yellow-300'
+              : 'bg-white/20 hover:bg-white/30 text-white'
+          }`}>
+          ✨
         </button>
 
         {/* End call */}
@@ -257,16 +690,43 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
         {/* Camera */}
         <button onClick={toggleCam}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${camOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 hover:bg-red-600 text-white'}`}>
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${camOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
           {camOn ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
             </svg>
           ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
             </svg>
           )}
+        </button>
+
+        {/* Flip camera (mobile) */}
+        <button onClick={async () => {
+          if (!localStreamRef.current) return;
+          const currentTrack = localStreamRef.current.getVideoTracks()[0];
+          const currentFacing = currentTrack?.getSettings()?.facingMode || 'user';
+          const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+          try {
+            const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing }, audio: true });
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            const sender = pcRef.current?.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) sender.replaceTrack(newVideoTrack);
+            currentTrack.stop();
+            localStreamRef.current.removeTrack(currentTrack);
+            localStreamRef.current.addTrack(newVideoTrack);
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+              const f = VIDEO_FILTERS.find(f => f.id === activeFilter);
+              localVideoRef.current.style.filter = f?.css || 'none';
+            }
+          } catch {}
+        }}
+          className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
         </button>
       </div>
     </div>
