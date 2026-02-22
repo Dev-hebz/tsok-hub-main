@@ -796,9 +796,10 @@ export default function FeedPage() {
 
   const answerCallFromFeed = () => {
     if (!incomingCall) return;
+    const callId = incomingCall.callDoc.id;
     setIncomingCall(null);
-    // Navigate to chat — the call listener there will handle the rest
-    router.push('/chat');
+    // Pass callId so chat page auto-answers immediately
+    router.push(`/chat?answering=${callId}`);
   };
 
   const declineCallFromFeed = async () => {

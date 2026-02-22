@@ -12,7 +12,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { sendNotification } from '../../lib/sendNotification';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -820,6 +820,7 @@ const DeleteGroupConfirm = ({ group, onClose, onDeleted }) => {
 export default function ChatPage() {
   const { user, userProfile, loading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // Tab: 'dm' | 'groups'
   const [activeTab, setActiveTab] = useState('dm');
@@ -1175,6 +1176,34 @@ export default function ChatPage() {
     });
     setIncomingCall(null);
   };
+
+  // Auto-answer if coming from feed page with ?answering=callId
+  useEffect(() => {
+    const answeringId = searchParams?.get('answering');
+    if (!answeringId || !user) return;
+    // Clean URL
+    router.replace('/chat');
+    // Wait briefly for call listener to pick up the call doc
+    const timer = setTimeout(async () => {
+      try {
+        const callRef = doc(db, 'calls', answeringId);
+        const snap = await getDoc(callRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (data.status === 'ended') return;
+        // Get caller profile
+        const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+        const callerProfile = callerSnap.exists() ? callerSnap.data() : null;
+        setActiveCall({
+          callDoc: callRef,
+          isCaller: false,
+          otherUser: callerProfile,
+        });
+        setIncomingCall(null);
+      } catch (e) { console.error('Auto-answer error:', e); }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchParams, user]);
 
   const declineCall = async () => {
     if (!incomingCall) return;
