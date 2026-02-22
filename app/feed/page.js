@@ -12,7 +12,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { sendNotification } from '../../lib/sendNotification';
-import { uploadToCloudinary } from '../../lib/cloudinary';
+import { uploadToCloudinary, uploadVideoToCloudinary } from '../../lib/cloudinary';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
@@ -265,6 +265,10 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
   const [newComment, setNewComment] = useState('');
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editText, setEditText] = useState(post.text || '');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (post.authorId) {
@@ -276,13 +280,9 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
     setLikeCount(post.likes?.length || 0);
   }, [post, currentUser]);
 
-  // Real-time comments
   useEffect(() => {
     if (!showComments) return;
-    const q = query(
-      collection(db, 'posts', post.id, 'comments'),
-      orderBy('createdAt', 'asc')
-    );
+    const q = query(collection(db, 'posts', post.id, 'comments'), orderBy('createdAt', 'asc'));
     const unsub = onSnapshot(q, snap => {
       setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -294,12 +294,10 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
     const postRef = doc(db, 'posts', post.id);
     if (liked) {
       await updateDoc(postRef, { likes: arrayRemove(currentUser.uid) });
-      setLiked(false);
-      setLikeCount(c => c - 1);
+      setLiked(false); setLikeCount(c => c - 1);
     } else {
       await updateDoc(postRef, { likes: arrayUnion(currentUser.uid) });
-      setLiked(true);
-      setLikeCount(c => c + 1);
+      setLiked(true); setLikeCount(c => c + 1);
     }
   };
 
@@ -307,22 +305,31 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
     e.preventDefault();
     if (!newComment.trim() || !currentUser) return;
     await addDoc(collection(db, 'posts', post.id, 'comments'), {
-      text: newComment.trim(),
-      authorId: currentUser.uid,
-      createdAt: serverTimestamp(),
+      text: newComment.trim(), authorId: currentUser.uid, createdAt: serverTimestamp(),
     });
     setNewComment('');
   };
 
-  const handleDeletePost = async () => {
-    setConfirmDelete(true);
-  };
-
+  const handleDeletePost = () => { setConfirmDelete(true); setShowMenu(false); };
   const confirmDeletePost = async () => {
     setConfirmDelete(false);
     await deleteDoc(doc(db, 'posts', post.id));
   };
 
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'posts', post.id), {
+        text: editText.trim(),
+        editedAt: serverTimestamp(),
+      });
+      setEditMode(false);
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const canEdit = currentUser?.uid === post.authorId;
   const canDelete = currentUser?.uid === post.authorId || currentProfile?.isAdmin;
 
   return (
@@ -342,43 +349,83 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
               {authorProfile?.fullName || 'TSOK Member'}
             </Link>
             <p className="text-blue-300 text-xs">{authorProfile?.school || authorProfile?.position || ''}</p>
-            <p className="text-blue-400 text-xs">{formatTime(post.createdAt)}</p>
+            <p className="text-blue-400 text-xs">
+              {formatTime(post.createdAt)}
+              {post.editedAt && <span className="ml-1 opacity-60">(edited)</span>}
+            </p>
           </div>
         </div>
-        {canDelete && (
-          <button
-            onClick={handleDeletePost}
-            className="text-red-400 hover:text-red-300 p-2 hover:bg-white/10 rounded-full transition-all"
-            title="Delete post"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+
+        {/* 3-dot menu */}
+        {(canEdit || canDelete) && (
+          <div className="relative">
+            <button
+              onClick={() => setShowMenu(p => !p)}
+              className="text-blue-300 hover:text-white p-2 hover:bg-white/10 rounded-full transition-all"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+              </svg>
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-10 bg-gray-900 border border-white/20 rounded-xl shadow-2xl z-20 min-w-[140px] overflow-hidden">
+                {canEdit && (
+                  <button
+                    onClick={() => { setEditMode(true); setEditText(post.text || ''); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-white hover:bg-white/10 text-sm transition-colors"
+                  >
+                    ✏️ Edit Post
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={handleDeletePost}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-red-400 hover:bg-red-500/20 text-sm transition-colors"
+                  >
+                    🗑️ Delete Post
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
-      {/* Post Content */}
-      {post.text && (
+      {/* Post Content — edit mode or display */}
+      {editMode ? (
         <div className="px-4 pb-3">
-          <p className="text-white text-base leading-relaxed whitespace-pre-wrap">{post.text}</p>
+          <textarea
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+            rows={3}
+            className="w-full bg-white/10 border border-yellow-400/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none text-sm"
+            autoFocus
+          />
+          <div className="flex gap-2 mt-2 justify-end">
+            <button
+              onClick={() => setEditMode(false)}
+              className="px-4 py-1.5 text-sm text-blue-300 hover:text-white transition-colors"
+            >Cancel</button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving || !editText.trim()}
+              className="px-5 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-full text-sm disabled:opacity-50 transition-all"
+            >{saving ? 'Saving...' : 'Save'}</button>
+          </div>
         </div>
+      ) : (
+        post.text && (
+          <div className="px-4 pb-3">
+            <p className="text-white text-base leading-relaxed whitespace-pre-wrap">{post.text}</p>
+          </div>
+        )
       )}
 
-      {/* Post Image — click to zoom */}
+      {/* Post Image */}
       {post.imageUrl && (
         <>
-          <div
-            className="w-full bg-black/20 cursor-zoom-in relative group"
-            onClick={() => setViewerOpen(true)}
-          >
-            <img
-              src={post.imageUrl}
-              alt="Post"
-              className="w-full h-auto object-contain"
-              style={{ maxHeight: '70vh' }}
-            />
-            {/* Zoom hint overlay */}
+          <div className="w-full bg-black/20 cursor-zoom-in relative group" onClick={() => setViewerOpen(true)}>
+            <img src={post.imageUrl} alt="Post" className="w-full h-auto object-contain" style={{ maxHeight: '70vh' }} />
             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/10">
               <div className="bg-black/50 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -388,10 +435,21 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
               </div>
             </div>
           </div>
-          {viewerOpen && (
-            <ImageViewer src={post.imageUrl} onClose={() => setViewerOpen(false)} />
-          )}
+          {viewerOpen && <ImageViewer src={post.imageUrl} onClose={() => setViewerOpen(false)} />}
         </>
+      )}
+
+      {/* Post Video */}
+      {post.videoUrl && (
+        <div className="w-full bg-black/20">
+          <video
+            src={post.videoUrl}
+            controls
+            playsInline
+            preload="metadata"
+            className="w-full max-h-[70vh] object-contain"
+          />
+        </div>
       )}
 
       {/* Stats Row */}
@@ -631,7 +689,10 @@ export default function FeedPage() {
   const [posts, setPosts] = useState([]);
   const [newPostText, setNewPostText] = useState('');
   const [newPostImage, setNewPostImage] = useState(null);
+  const [newPostVideo, setNewPostVideo] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [videoPreview, setVideoPreview] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [posting, setPosting] = useState(false);
   const [members, setMembers] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
@@ -640,6 +701,7 @@ export default function FeedPage() {
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
   const [incomingCall, setIncomingCall] = useState(null);
   const fileRef = useRef(null);
+  const videoFileRef = useRef(null);
 
   // Online statuses — must be after members state
   const memberUids = members.map(m => m.uid || m.id).filter(Boolean);
@@ -725,32 +787,47 @@ export default function FeedPage() {
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    setNewPostVideo(null); setVideoPreview('');
     setNewPostImage(file);
     setImagePreview(URL.createObjectURL(file));
   };
 
+  const handleVideoSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 200 * 1024 * 1024) { alert('Video too large. Max 200MB.'); return; }
+    setNewPostImage(null); setImagePreview('');
+    setNewPostVideo(file);
+    setVideoPreview(URL.createObjectURL(file));
+  };
+
   const handlePost = async (e) => {
     e.preventDefault();
-    if (!newPostText.trim() && !newPostImage) return;
+    if (!newPostText.trim() && !newPostImage && !newPostVideo) return;
     if (!userProfile?.canPost && !userProfile?.isAdmin) {
       showAlert('Posting Disabled', 'Your posting permission has been disabled by the admin.', 'warning');
       return;
     }
     setPosting(true);
+    setUploadProgress(0);
     try {
       let imageUrl = '';
+      let videoUrl = '';
       if (newPostImage) {
         imageUrl = await uploadToCloudinary(newPostImage, 'tsok-posts');
+      }
+      if (newPostVideo) {
+        videoUrl = await uploadVideoToCloudinary(newPostVideo, 'tsok-posts', setUploadProgress);
       }
       await addDoc(collection(db, 'posts'), {
         text: newPostText.trim(),
         imageUrl,
+        videoUrl,
         authorId: user.uid,
         likes: [],
         commentCount: 0,
         createdAt: serverTimestamp(),
       });
-      // Notify friends about new post
       const myFriends = userProfile?.friends || [];
       const previewText = newPostText.trim().slice(0, 60) + (newPostText.length > 60 ? '...' : '');
       myFriends.forEach(uid => {
@@ -758,12 +835,13 @@ export default function FeedPage() {
           recipientUid: uid,
           type: 'message',
           senderName: userProfile?.fullName || 'Someone',
-          message: `📝 posted: ${previewText || '📷 shared a photo'}`,
+          message: `${newPostVideo ? '🎥' : '📝'} posted: ${previewText || (newPostVideo ? 'shared a video' : 'shared a photo')}`,
         });
       });
       setNewPostText('');
-      setNewPostImage(null);
-      setImagePreview('');
+      setNewPostImage(null); setImagePreview('');
+      setNewPostVideo(null); setVideoPreview('');
+      setUploadProgress(0);
     } catch (err) {
       showAlert('Post Failed', 'Error creating post. Please check your connection and try again.', 'error');
     } finally {
@@ -1008,30 +1086,51 @@ export default function FeedPage() {
                         className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all resize-none text-sm"
                       />
                       {imagePreview && (
-                        <div className="relative mt-2 inline-block">
+                        <div className="relative mt-2">
                           <img src={imagePreview} alt="Preview" className="max-h-48 rounded-xl object-contain w-full bg-black/20" />
-                          <button
-                            onClick={() => { setNewPostImage(null); setImagePreview(''); }}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-400 transition-colors"
-                          >✕</button>
+                          <button onClick={() => { setNewPostImage(null); setImagePreview(''); }}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-400 transition-colors">✕</button>
+                        </div>
+                      )}
+                      {videoPreview && (
+                        <div className="relative mt-2">
+                          <video src={videoPreview} controls playsInline className="max-h-48 rounded-xl w-full bg-black/20" />
+                          <button onClick={() => { setNewPostVideo(null); setVideoPreview(''); }}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-400 transition-colors">✕</button>
+                        </div>
+                      )}
+                      {/* Upload progress bar */}
+                      {posting && newPostVideo && (
+                        <div className="mt-2">
+                          <div className="flex justify-between text-xs text-blue-300 mb-1">
+                            <span>{uploadProgress < 70 ? '🎬 Compressing video...' : '☁️ Uploading...'}</span>
+                            <span>{uploadProgress}%</span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-2">
+                            <div className="bg-yellow-400 h-2 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
                         </div>
                       )}
                       <div className="flex items-center justify-between mt-3">
-                        <button
-                          type="button"
-                          onClick={() => fileRef.current?.click()}
-                          className="flex items-center gap-2 text-blue-300 hover:text-yellow-400 transition-colors text-sm font-medium"
-                        >
-                          📷 <span>Add Photo</span>
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button type="button" onClick={() => fileRef.current?.click()}
+                            className="flex items-center gap-1.5 text-blue-300 hover:text-yellow-400 transition-colors text-sm font-medium">
+                            📷 <span>Photo</span>
+                          </button>
+                          <button type="button" onClick={() => videoFileRef.current?.click()}
+                            className="flex items-center gap-1.5 text-blue-300 hover:text-yellow-400 transition-colors text-sm font-medium">
+                            🎥 <span>Video</span>
+                          </button>
+                        </div>
                         <input ref={fileRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                        <input ref={videoFileRef} type="file" accept="video/*" onChange={handleVideoSelect} className="hidden" />
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={handlePost}
-                          disabled={posting || (!newPostText.trim() && !newPostImage)}
+                          disabled={posting || (!newPostText.trim() && !newPostImage && !newPostVideo)}
                           className="px-6 py-2 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm shadow-lg"
                         >
-                          {posting ? 'Posting...' : 'Post'}
+                          {posting ? (newPostVideo ? `${uploadProgress}%` : 'Posting...') : 'Post'}
                         </motion.button>
                       </div>
                     </div>
