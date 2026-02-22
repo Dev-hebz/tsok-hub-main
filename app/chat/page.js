@@ -126,19 +126,25 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
   // Canvas render loop — draws video frame to canvas every animation frame
   const startCanvasLoop = (videoEl, canvas) => {
     const ctx = canvas.getContext('2d');
+    let dimsSet = false;
     const draw = () => {
       if (videoEl.readyState >= 2) {
-        canvas.width = videoEl.videoWidth || 640;
-        canvas.height = videoEl.videoHeight || 480;
-        // Apply filter via canvas 2D context
-        const f = VIDEO_FILTERS.find(f => f.id === activeFilterRef.current);
-        ctx.filter = f?.css === 'none' ? 'none' : (f?.css || 'none');
-        // Mirror horizontally (selfie view)
-        ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
+        // Set dimensions only once — resizing canvas resets ctx state
+        if (!dimsSet && videoEl.videoWidth > 0) {
+          canvas.width = videoEl.videoWidth;
+          canvas.height = videoEl.videoHeight;
+          dimsSet = true;
+        }
+        if (dimsSet) {
+          const f = VIDEO_FILTERS.find(f => f.id === activeFilterRef.current);
+          const filterVal = (!f || f.css === 'none') ? 'none' : f.css;
+          ctx.filter = filterVal;
+          ctx.save();
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          ctx.restore();
+        }
       }
       animFrameRef.current = requestAnimationFrame(draw);
     };
@@ -1083,10 +1089,25 @@ function ChatPageInner() {
     const dmUnsub = onSnapshot(dmQuery, async snap => {
       for (const change of snap.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
+          // Don't show banner if already in a call
+          setActiveCall(current => {
+            if (current) return current; // already in call, ignore
+            return current;
+          });
+          setIncomingCall(current => {
+            if (current?.callDoc?.id === change.doc.id) return current; // already showing
+            return current;
+          });
           const data = change.doc.data();
+          if (data.status !== 'calling') continue;
           const callerSnap = await getDoc(doc(db, 'users', data.callerId));
           const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+          setActiveCall(current => {
+            if (!current) {
+              setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+            }
+            return current;
+          });
         }
         if (change.type === 'removed') {
           setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
@@ -1105,11 +1126,17 @@ function ChatPageInner() {
       for (const change of snap.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
-          if (data.callerId === user.uid) continue; // skip my own calls
+          if (data.callerId === user.uid) continue;
           if (!(data.members || []).includes(user.uid)) continue;
+          if (data.status !== 'calling') continue;
           const callerSnap = await getDoc(doc(db, 'users', data.callerId));
           const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
+          setActiveCall(current => {
+            if (!current) {
+              setIncomingCall({ callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
+            }
+            return current;
+          });
         }
         if (change.type === 'removed') {
           setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
@@ -1178,6 +1205,8 @@ function ChatPageInner() {
 
   const answerCall = () => {
     if (!incomingCall) return;
+    // Immediately mark as answered to stop the 'calling' listener from re-triggering
+    updateDoc(incomingCall.callDoc, { status: 'answered' }).catch(() => {});
     setActiveCall({
       callDoc: incomingCall.callDoc,
       isCaller: false,
@@ -1208,6 +1237,8 @@ function ChatPageInner() {
           isCaller: false,
           otherUser: callerProfile,
         });
+        // Mark answered so listener stops re-firing
+        updateDoc(callRef, { status: 'answered' }).catch(() => {});
         setIncomingCall(null);
       } catch (e) { console.error('Auto-answer error:', e); }
     }, 500);

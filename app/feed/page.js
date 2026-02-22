@@ -687,11 +687,12 @@ export default function FeedPage() {
       for (const change of snap.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
+          if (data.status !== 'calling') continue;
           const callerSnap = await getDoc(doc(db, 'users', data.callerId));
           const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+          setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? prev : { callDoc: change.doc.ref, callerProfile, data });
         }
-        if (change.type === 'removed') setIncomingCall(null);
+        if (change.type === 'removed') setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
       }
     });
     const groupQuery = query(collection(db, 'calls'), where('calleeId', '==', 'group'), where('status', '==', 'calling'));
@@ -700,11 +701,12 @@ export default function FeedPage() {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
           if (data.callerId === user.uid || !(data.members || []).includes(user.uid)) continue;
+          if (data.status !== 'calling') continue;
           const callerSnap = await getDoc(doc(db, 'users', data.callerId));
           const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
+          setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? prev : { callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
         }
-        if (change.type === 'removed') setIncomingCall(null);
+        if (change.type === 'removed') setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
       }
     });
     return () => { dmUnsub(); groupUnsub(); };
