@@ -796,12 +796,21 @@ export default function FeedPage() {
     );
   }).slice(0, 6);
 
-  const answerCallFromFeed = () => {
+  const answerCallFromFeed = async () => {
     if (!incomingCall) return;
     const callId = incomingCall.callDoc.id;
+    // 1. Mark as answered in Firestore BEFORE navigating
+    // so the 'calling' listener on chat page won't re-trigger
+    try { await updateDoc(incomingCall.callDoc, { status: 'answered' }); } catch {}
+    // 2. Store caller profile in sessionStorage so chat page can pick it up
+    try {
+      sessionStorage.setItem('pendingCall', JSON.stringify({
+        callId,
+        callerProfile: incomingCall.callerProfile,
+      }));
+    } catch {}
     setIncomingCall(null);
-    // Pass callId so chat page auto-answers immediately
-    router.push(`/chat?answering=${callId}`);
+    router.push('/chat');
   };
 
   const declineCallFromFeed = async () => {

@@ -12,8 +12,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { sendNotification } from '../../lib/sendNotification';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -965,17 +964,8 @@ const DeleteGroupConfirm = ({ group, onClose, onDeleted }) => {
 
 // ─── Main Chat Page ───────────────────────────────────────────────
 export default function ChatPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950 flex items-center justify-center"><div className="animate-spin w-12 h-12 border-4 border-yellow-400 border-t-transparent rounded-full" /></div>}>
-      <ChatPageInner />
-    </Suspense>
-  );
-}
-
-function ChatPageInner() {
   const { user, userProfile, loading } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Tab: 'dm' | 'groups'
   const [activeTab, setActiveTab] = useState('dm');
@@ -1355,35 +1345,27 @@ function ChatPageInner() {
     setIncomingCall(null);
   };
 
-  // Auto-answer if coming from feed page with ?answering=callId
+  // Auto-answer if coming from feed page via sessionStorage
   useEffect(() => {
-    const answeringId = searchParams?.get('answering');
-    if (!answeringId || !user) return;
-    // Clean URL
-    router.replace('/chat');
-    // Wait briefly for call listener to pick up the call doc
-    const timer = setTimeout(async () => {
-      try {
-        const callRef = doc(db, 'calls', answeringId);
-        const snap = await getDoc(callRef);
-        if (!snap.exists()) return;
-        const data = snap.data();
-        if (data.status === 'ended') return;
-        // Get caller profile
-        const callerSnap = await getDoc(doc(db, 'users', data.callerId));
-        const callerProfile = callerSnap.exists() ? callerSnap.data() : null;
+    if (!user) return;
+    try {
+      const raw = sessionStorage.getItem('pendingCall');
+      if (!raw) return;
+      sessionStorage.removeItem('pendingCall');
+      const { callId, callerProfile } = JSON.parse(raw);
+      if (!callId) return;
+      const callRef = doc(db, 'calls', callId);
+      const timer = setTimeout(() => {
+        setIncomingCall(null);
         setActiveCall({
           callDoc: callRef,
           isCaller: false,
           otherUser: callerProfile,
         });
-        // Mark answered so listener stops re-firing
-        updateDoc(callRef, { status: 'answered' }).catch(() => {});
-        setIncomingCall(null);
-      } catch (e) { console.error('Auto-answer error:', e); }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchParams, user]);
+      }, 200);
+      return () => clearTimeout(timer);
+    } catch (e) { console.error('Auto-answer error:', e); }
+  }, [user]);
 
   const declineCall = async () => {
     if (!incomingCall) return;
