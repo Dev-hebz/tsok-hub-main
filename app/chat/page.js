@@ -165,15 +165,26 @@ const applyPixelFilter = (ctx, filterId, width, height) => {
   } catch (e) { /* cross-origin guard */ }
 };
 
-// Check if ctx.filter is supported (not Safari)
-const ctxFilterSupported = (() => {
+// Proper Safari ctx.filter detection — test actual pixel rendering
+let _ctxFilterSupported = null;
+const ctxFilterSupported = () => {
+  if (_ctxFilterSupported !== null) return _ctxFilterSupported;
   try {
     const c = document.createElement('canvas');
+    c.width = c.height = 2;
     const ctx = c.getContext('2d');
-    ctx.filter = 'brightness(1)';
-    return ctx.filter === 'brightness(1)';
-  } catch { return false; }
-})();
+    // Draw white pixel
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 2, 2);
+    // Apply brightness 0 (should make it black)
+    ctx.filter = 'brightness(0)';
+    ctx.drawImage(c, 0, 0);
+    const pixel = ctx.getImageData(0, 0, 1, 1).data;
+    // If filter worked, pixel should be dark (< 50)
+    _ctxFilterSupported = pixel[0] < 50;
+  } catch { _ctxFilterSupported = false; }
+  return _ctxFilterSupported;
+};
 
 const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) => {
   const localVideoRef = useRef(null);   // shows raw camera (hidden)
@@ -206,11 +217,6 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
   // Sync filter ref so canvas loop always has latest value
   useEffect(() => {
     activeFilterRef.current = activeFilter;
-    // Also apply to canvas element for immediate visual on preview
-    if (canvasRef.current) {
-      const f = VIDEO_FILTERS.find(f => f.id === activeFilter);
-      canvasRef.current.style.filter = f?.css || 'none';
-    }
   }, [activeFilter]);
 
   useEffect(() => {
@@ -244,7 +250,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
           ctx.restore();
           // Step 2: Apply filter
           if (filterId !== 'normal') {
-            if (ctxFilterSupported) {
+            if (ctxFilterSupported()) {
               // Chrome/Firefox — fast CSS filter via ctx
               const cssMap = {
                 beauty:  'brightness(1.08) contrast(0.92) saturate(1.1)',
@@ -301,13 +307,20 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
       const canvas = canvasRef.current;
       startCanvasLoop(videoEl, canvas);
 
-      // 4. Capture canvas as stream (30fps)
-      const canvasStream = canvas.captureStream(30);
-      canvasStreamRef.current = canvasStream;
-
-      // 5. Add audio track from original stream to canvas stream
+      // 4. Capture canvas as stream (30fps) — fallback to original stream on iOS
+      let canvasStream;
       const audioTrack = stream.getAudioTracks()[0];
-      if (audioTrack) canvasStream.addTrack(audioTrack);
+      if (typeof canvas.captureStream === 'function') {
+        canvasStream = canvas.captureStream(30);
+        canvasStreamRef.current = canvasStream;
+        // 5. Add audio track
+        if (audioTrack) canvasStream.addTrack(audioTrack);
+      } else {
+        // iOS Safari doesn't support captureStream — use original stream directly
+        // Filters will be display-only on iOS (PIP preview still shows them)
+        canvasStream = stream;
+        canvasStreamRef.current = null;
+      }
 
       // 6. Show preview using canvas stream
       if (previewRef.current) {
@@ -438,7 +451,8 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
         <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-36 sm:h-48 rounded-2xl overflow-hidden border-2 border-yellow-400 shadow-2xl bg-gray-800">
           {camOn ? (
             <video ref={previewRef} autoPlay playsInline muted
-              className="w-full h-full object-cover" />
+              className="w-full h-full object-cover"
+              style={{ filter: { beauty:'brightness(1.08) contrast(0.92) saturate(1.1)', smooth:'brightness(1.12) contrast(0.88)', warm:'sepia(0.2) saturate(1.3) brightness(1.05)', cool:'hue-rotate(15deg) saturate(0.9)', vivid:'contrast(1.15) saturate(1.5)', soft:'brightness(0.95) contrast(0.85)', bw:'grayscale(1)', vintage:'sepia(0.5) contrast(0.9)', bright:'brightness(1.25)' }[activeFilter] || 'none' }} />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-800">
               <Avatar user={currentUser} size={10} />
