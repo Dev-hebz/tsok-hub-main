@@ -64,17 +64,116 @@ const ICE_SERVERS = {
 
 // ─── Video Filters ────────────────────────────────────────────────
 const VIDEO_FILTERS = [
-  { id: 'normal',   label: 'Normal',   icon: '🎥', css: 'none' },
-  { id: 'beauty',   label: 'Beauty',   icon: '✨', css: 'brightness(1.08) contrast(0.92) saturate(1.1)' },
-  { id: 'smooth',   label: 'Smooth',   icon: '🌸', css: 'brightness(1.12) contrast(0.88) saturate(0.95)' },
-  { id: 'warm',     label: 'Warm',     icon: '🌅', css: 'brightness(1.05) saturate(1.3) sepia(0.15) hue-rotate(-10deg)' },
-  { id: 'cool',     label: 'Cool',     icon: '❄️', css: 'brightness(1.02) saturate(0.9) hue-rotate(15deg)' },
-  { id: 'vivid',    label: 'Vivid',    icon: '🌈', css: 'brightness(1.05) contrast(1.15) saturate(1.5)' },
-  { id: 'soft',     label: 'Soft',     icon: '🌙', css: 'brightness(0.95) contrast(0.85) saturate(0.9)' },
-  { id: 'bw',       label: 'B&W',      icon: '⬛', css: 'grayscale(1) contrast(1.1)' },
-  { id: 'vintage',  label: 'Vintage',  icon: '📷', css: 'sepia(0.5) contrast(0.9) brightness(0.95) saturate(0.8)' },
-  { id: 'bright',   label: 'Bright',   icon: '☀️', css: 'brightness(1.25) contrast(1.05) saturate(1.1)' },
+  { id: 'normal',  label: 'Normal',  icon: '🎥' },
+  { id: 'beauty',  label: 'Beauty',  icon: '✨' },
+  { id: 'smooth',  label: 'Smooth',  icon: '🌸' },
+  { id: 'warm',    label: 'Warm',    icon: '🌅' },
+  { id: 'cool',    label: 'Cool',    icon: '❄️' },
+  { id: 'vivid',   label: 'Vivid',   icon: '🌈' },
+  { id: 'soft',    label: 'Soft',    icon: '🌙' },
+  { id: 'bw',      label: 'B&W',     icon: '⬛' },
+  { id: 'vintage', label: 'Vintage', icon: '📷' },
+  { id: 'bright',  label: 'Bright',  icon: '☀️' },
 ];
+
+// Safari-compatible pixel-level filter application
+const applyPixelFilter = (ctx, filterId, width, height) => {
+  if (filterId === 'normal') return;
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i+1], b = d[i+2];
+      if (filterId === 'beauty') {
+        // Brightness up, contrast slight down (smooth skin)
+        r = Math.min(255, r * 1.08 * 0.92 + 255 * (1 - 0.92) / 2);
+        g = Math.min(255, g * 1.08 * 0.92 + 255 * (1 - 0.92) / 2);
+        b = Math.min(255, b * 1.08 * 0.92 + 255 * (1 - 0.92) / 2);
+        // Slight saturation boost
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 1.1);
+        g = Math.min(255, avg + (g - avg) * 1.1);
+        b = Math.min(255, avg + (b - avg) * 1.1);
+      } else if (filterId === 'smooth') {
+        r = Math.min(255, r * 1.12 * 0.88 + 255 * (1 - 0.88) / 2);
+        g = Math.min(255, g * 1.12 * 0.88 + 255 * (1 - 0.88) / 2);
+        b = Math.min(255, b * 1.12 * 0.88 + 255 * (1 - 0.88) / 2);
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 0.95);
+        g = Math.min(255, avg + (g - avg) * 0.95);
+        b = Math.min(255, avg + (b - avg) * 0.95);
+      } else if (filterId === 'warm') {
+        r = Math.min(255, r * 1.15); // boost red
+        g = Math.min(255, g * 1.05);
+        b = Math.max(0,   b * 0.88); // reduce blue
+      } else if (filterId === 'cool') {
+        r = Math.max(0,   r * 0.88); // reduce red
+        g = Math.min(255, g * 1.02);
+        b = Math.min(255, b * 1.15); // boost blue
+      } else if (filterId === 'vivid') {
+        r = Math.min(255, r * 1.05);
+        g = Math.min(255, g * 1.05);
+        b = Math.min(255, b * 1.05);
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 1.5);
+        g = Math.min(255, avg + (g - avg) * 1.5);
+        b = Math.min(255, avg + (b - avg) * 1.5);
+        r = Math.min(255, (r - 128) * 1.15 + 128);
+        g = Math.min(255, (g - 128) * 1.15 + 128);
+        b = Math.min(255, (b - 128) * 1.15 + 128);
+      } else if (filterId === 'soft') {
+        r = Math.min(255, (r - 128) * 0.85 + 128) * 0.95;
+        g = Math.min(255, (g - 128) * 0.85 + 128) * 0.95;
+        b = Math.min(255, (b - 128) * 0.85 + 128) * 0.95;
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 0.9);
+        g = Math.min(255, avg + (g - avg) * 0.9);
+        b = Math.min(255, avg + (b - avg) * 0.9);
+      } else if (filterId === 'bw') {
+        const gray = r * 0.299 + g * 0.587 + b * 0.114;
+        const c = Math.min(255, (gray - 128) * 1.1 + 128);
+        r = g = b = c;
+      } else if (filterId === 'vintage') {
+        // Sepia 50%
+        const sr = r * 0.393 + g * 0.769 + b * 0.189;
+        const sg = r * 0.349 + g * 0.686 + b * 0.168;
+        const sb = r * 0.272 + g * 0.534 + b * 0.131;
+        r = Math.min(255, r * 0.5 + sr * 0.5) * 0.9;
+        g = Math.min(255, g * 0.5 + sg * 0.5) * 0.9;
+        b = Math.min(255, b * 0.5 + sb * 0.5) * 0.9;
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 0.8);
+        g = Math.min(255, avg + (g - avg) * 0.8);
+        b = Math.min(255, avg + (b - avg) * 0.8);
+      } else if (filterId === 'bright') {
+        r = Math.min(255, r * 1.25);
+        g = Math.min(255, g * 1.25);
+        b = Math.min(255, b * 1.25);
+        r = Math.min(255, (r - 128) * 1.05 + 128);
+        g = Math.min(255, (g - 128) * 1.05 + 128);
+        b = Math.min(255, (b - 128) * 1.05 + 128);
+        const avg = (r + g + b) / 3;
+        r = Math.min(255, avg + (r - avg) * 1.1);
+        g = Math.min(255, avg + (g - avg) * 1.1);
+        b = Math.min(255, avg + (b - avg) * 1.1);
+      }
+      d[i] = Math.max(0, Math.min(255, r));
+      d[i+1] = Math.max(0, Math.min(255, g));
+      d[i+2] = Math.max(0, Math.min(255, b));
+    }
+    ctx.putImageData(imageData, 0, 0);
+  } catch (e) { /* cross-origin guard */ }
+};
+
+// Check if ctx.filter is supported (not Safari)
+const ctxFilterSupported = (() => {
+  try {
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    ctx.filter = 'brightness(1)';
+    return ctx.filter === 'brightness(1)';
+  } catch { return false; }
+})();
 
 const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) => {
   const localVideoRef = useRef(null);   // shows raw camera (hidden)
@@ -123,27 +222,54 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const formatDuration = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  // Canvas render loop — draws video frame to canvas every animation frame
+  // Canvas render loop — Safari-compatible pixel filter
   const startCanvasLoop = (videoEl, canvas) => {
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let dimsSet = false;
     const draw = () => {
       if (videoEl.readyState >= 2) {
-        // Set dimensions only once — resizing canvas resets ctx state
         if (!dimsSet && videoEl.videoWidth > 0) {
           canvas.width = videoEl.videoWidth;
           canvas.height = videoEl.videoHeight;
           dimsSet = true;
         }
         if (dimsSet) {
-          const f = VIDEO_FILTERS.find(f => f.id === activeFilterRef.current);
-          const filterVal = (!f || f.css === 'none') ? 'none' : f.css;
-          ctx.filter = filterVal;
+          const filterId = activeFilterRef.current;
+          // Step 1: Draw mirrored video to canvas
+          ctx.filter = 'none';
           ctx.save();
           ctx.translate(canvas.width, 0);
           ctx.scale(-1, 1);
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
           ctx.restore();
+          // Step 2: Apply filter
+          if (filterId !== 'normal') {
+            if (ctxFilterSupported) {
+              // Chrome/Firefox — fast CSS filter via ctx
+              const cssMap = {
+                beauty:  'brightness(1.08) contrast(0.92) saturate(1.1)',
+                smooth:  'brightness(1.12) contrast(0.88) saturate(0.95)',
+                warm:    'brightness(1.05) saturate(1.3) sepia(0.15) hue-rotate(-10deg)',
+                cool:    'brightness(1.02) saturate(0.9) hue-rotate(15deg)',
+                vivid:   'brightness(1.05) contrast(1.15) saturate(1.5)',
+                soft:    'brightness(0.95) contrast(0.85) saturate(0.9)',
+                bw:      'grayscale(1) contrast(1.1)',
+                vintage: 'sepia(0.5) contrast(0.9) brightness(0.95) saturate(0.8)',
+                bright:  'brightness(1.25) contrast(1.05) saturate(1.1)',
+              };
+              const tmpCanvas = document.createElement('canvas');
+              tmpCanvas.width = canvas.width;
+              tmpCanvas.height = canvas.height;
+              const tmpCtx = tmpCanvas.getContext('2d');
+              tmpCtx.filter = cssMap[filterId] || 'none';
+              tmpCtx.drawImage(canvas, 0, 0);
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(tmpCanvas, 0, 0);
+            } else {
+              // Safari — pixel-level manipulation
+              applyPixelFilter(ctx, filterId, canvas.width, canvas.height);
+            }
+          }
         }
       }
       animFrameRef.current = requestAnimationFrame(draw);
@@ -345,7 +471,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
                   style={{ minWidth: 64 }}
                 >
                   <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center text-xl relative"
-                    style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', filter: filter.css === 'none' ? 'none' : filter.css }}>
+                    style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)', filter: { beauty:'brightness(1.08) contrast(0.92) saturate(1.1)', smooth:'brightness(1.12) contrast(0.88)', warm:'sepia(0.2) saturate(1.3)', cool:'hue-rotate(15deg) saturate(0.9)', vivid:'contrast(1.15) saturate(1.5)', soft:'brightness(0.95) contrast(0.85)', bw:'grayscale(1)', vintage:'sepia(0.5) contrast(0.9)', bright:'brightness(1.25)' }[filter.id] || 'none' }}>
                     <span>{filter.icon}</span>
                   </div>
                   <span className={`text-xs font-medium ${activeFilter === filter.id ? 'text-yellow-400' : 'text-blue-200'}`}>
