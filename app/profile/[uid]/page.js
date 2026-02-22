@@ -375,6 +375,36 @@ export default function ProfilePage() {
                   <span>👥 {(profile.friends || []).length} Friends</span>
                   <span>📝 {posts.length} Posts</span>
                 </div>
+                {/* Profile completion — own profile only */}
+                {isOwnProfile && (() => {
+                  const fields = [
+                    { label: 'Profile Photo', done: !!profile.profilePic },
+                    { label: 'Bio', done: !!profile.bio },
+                    { label: 'Position', done: !!profile.position },
+                    { label: 'School', done: !!profile.school },
+                    { label: 'First post', done: posts.length > 0 },
+                    { label: 'First friend', done: (profile.friends || []).length > 0 },
+                  ];
+                  const done = fields.filter(f => f.done).length;
+                  const pct = Math.round((done / fields.length) * 100);
+                  const missing = fields.filter(f => !f.done);
+                  if (pct === 100) return null;
+                  return (
+                    <div className="mt-4 bg-white/5 border border-white/10 rounded-2xl p-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-white text-xs font-semibold">Profile Completion</span>
+                        <span className={`text-xs font-bold ${pct >= 80 ? 'text-green-400' : pct >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>{pct}%</span>
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-2 mb-2">
+                        <div className={`h-2 rounded-full transition-all duration-700 ${pct >= 80 ? 'bg-green-400' : pct >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                      {missing.length > 0 && (
+                        <p className="text-blue-300 text-xs">Complete: {missing.map(f => f.label).join(' · ')}</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <motion.div

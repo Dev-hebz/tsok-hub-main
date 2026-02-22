@@ -11,6 +11,7 @@ import {
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
+import { sendNotification } from '../../lib/sendNotification';
 import { uploadToCloudinary } from '../../lib/cloudinary';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -746,6 +747,17 @@ export default function FeedPage() {
         likes: [],
         commentCount: 0,
         createdAt: serverTimestamp(),
+      });
+      // Notify friends about new post
+      const myFriends = userProfile?.friends || [];
+      const previewText = newPostText.trim().slice(0, 60) + (newPostText.length > 60 ? '...' : '');
+      myFriends.forEach(uid => {
+        sendNotification({
+          recipientUid: uid,
+          type: 'message',
+          senderName: userProfile?.fullName || 'Someone',
+          message: `📝 posted: ${previewText || '📷 shared a photo'}`,
+        });
       });
       setNewPostText('');
       setNewPostImage(null);

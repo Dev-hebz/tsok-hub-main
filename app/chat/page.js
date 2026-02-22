@@ -362,16 +362,39 @@ const CreateGroupModal = ({ friends, currentUser, onClose, onCreate }) => {
 };
 
 // ─── Message Bubble ───────────────────────────────────────────────
-const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, chatId, isGroup }) => {
+const EMOJI_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
+
+const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, chatId, isGroup, currentUserId }) => {
   const [hovered, setHovered] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState(msg.text);
   const [saving, setSaving] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const editRef = useRef(null);
 
   useEffect(() => {
     if (editing) { editRef.current?.focus(); editRef.current?.select(); }
   }, [editing]);
+
+  // Aggregate reactions: { '❤️': ['uid1','uid2'], ... }
+  const reactions = msg.reactions || {};
+  const reactionSummary = Object.entries(reactions).filter(([, uids]) => uids.length > 0);
+
+  const handleReact = async (emoji) => {
+    setShowEmojiPicker(false);
+    try {
+      const uids = reactions[emoji] || [];
+      const alreadyReacted = uids.includes(currentUserId);
+      const newUids = alreadyReacted ? uids.filter(u => u !== currentUserId) : [...uids, currentUserId];
+      const updateData = { [`reactions.${emoji}`]: newUids };
+      if (chatId.startsWith('groups/')) {
+        const parts = chatId.split('/');
+        await updateDoc(doc(db, 'groups', parts[1], 'messages', msg.id), updateData);
+      } else {
+        await updateDoc(doc(db, 'chats', chatId, 'messages', msg.id), updateData);
+      }
+    } catch (err) { console.error(err); }
+  };
 
   const handleSaveEdit = async () => {
     const trimmed = editText.trim();
@@ -391,7 +414,6 @@ const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, ch
 
   const handleDelete = async () => {
     try {
-      // chatId for DM is like 'uid1_uid2', for group it's like 'groups/groupId/messages'
       if (chatId.startsWith('groups/')) {
         const parts = chatId.split('/');
         await deleteDoc(doc(db, 'groups', parts[1], 'messages', msg.id));
@@ -403,7 +425,7 @@ const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, ch
 
   return (
     <div className={`flex items-end gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'} ${isConsecutive ? 'mt-0.5' : 'mt-3'}`}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); setShowEmojiPicker(false); }}>
 
       {/* Avatar */}
       {!isMe && (
@@ -413,27 +435,47 @@ const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, ch
       )}
 
       <div className={`flex items-end gap-1 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-        {/* Edit/Delete icons */}
-        {isMe && !editing && (
+        {/* Action icons — react, edit, delete */}
+        {!editing && (
           <div className={`flex flex-col gap-0.5 mb-5 transition-opacity duration-150 ${hovered ? 'opacity-100' : 'opacity-0'}`}>
-            <button onClick={() => { setEditing(true); setEditText(msg.text); }} title="Edit"
-              className="w-5 h-5 rounded-full bg-white/10 hover:bg-blue-500/50 text-blue-300 hover:text-white flex items-center justify-center transition-all">
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-              </svg>
-            </button>
-            <button onClick={handleDelete} title="Delete"
-              className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/50 text-blue-300 hover:text-red-300 flex items-center justify-center transition-all">
-              <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-              </svg>
-            </button>
+            {/* Emoji react */}
+            <div className="relative">
+              <button onClick={() => setShowEmojiPicker(p => !p)} title="React"
+                className="w-5 h-5 rounded-full bg-white/10 hover:bg-yellow-500/40 text-yellow-300 flex items-center justify-center transition-all text-xs">
+                😊
+              </button>
+              {showEmojiPicker && (
+                <div className={`absolute bottom-7 ${isMe ? 'right-0' : 'left-0'} z-50 flex gap-1 bg-blue-900/95 border border-white/20 rounded-2xl px-2 py-1.5 shadow-2xl`}>
+                  {EMOJI_REACTIONS.map(emoji => (
+                    <button key={emoji} onClick={() => handleReact(emoji)}
+                      className="text-lg hover:scale-125 transition-transform active:scale-95">
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {isMe && (
+              <>
+                <button onClick={() => { setEditing(true); setEditText(msg.text); }} title="Edit"
+                  className="w-5 h-5 rounded-full bg-white/10 hover:bg-blue-500/50 text-blue-300 hover:text-white flex items-center justify-center transition-all">
+                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+                <button onClick={handleDelete} title="Delete"
+                  className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/50 text-blue-300 hover:text-red-300 flex items-center justify-center transition-all">
+                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </>
+            )}
           </div>
         )}
 
         {/* Bubble */}
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[260px] sm:max-w-[340px]`}>
-          {/* Sender name (group only) */}
           {isGroup && !isMe && showAvatar && (
             <span className="text-yellow-400 text-xs font-semibold px-1 mb-0.5 truncate max-w-full">
               {senderProfile?.fullName?.split(' ')[0] || 'Member'}
@@ -467,11 +509,28 @@ const MessageBubble = ({ msg, isMe, showAvatar, isConsecutive, senderProfile, ch
             </div>
           )}
 
+          {/* Reaction bubbles */}
+          {reactionSummary.length > 0 && (
+            <div className={`flex flex-wrap gap-0.5 mt-1 ${isMe ? 'justify-end' : 'justify-start'}`}>
+              {reactionSummary.map(([emoji, uids]) => (
+                <button key={emoji} onClick={() => handleReact(emoji)}
+                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs border transition-all ${
+                    uids.includes(currentUserId)
+                      ? 'bg-yellow-400/30 border-yellow-400/60 text-yellow-200'
+                      : 'bg-white/10 border-white/20 text-white hover:bg-white/20'
+                  }`}>
+                  <span>{emoji}</span>
+                  {uids.length > 1 && <span className="font-bold">{uids.length}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
           {!editing && (
             <span className={`text-xs text-blue-400 mt-0.5 px-1 flex items-center gap-0.5 ${isMe ? 'flex-row-reverse' : ''}`}>
               {formatTimeFull(msg.createdAt)}
               {isMe && !isGroup && (
-                <span className={msg.read ? 'text-yellow-400' : 'text-blue-500'} style={{ fontSize: 10 }}>
+                <span className={`font-bold ${msg.read ? 'text-yellow-400' : 'text-blue-500/50'}`} style={{ fontSize: 11, letterSpacing: -1 }}>
                   {msg.read ? '✓✓' : '✓'}
                 </span>
               )}
@@ -1285,7 +1344,7 @@ export default function ChatPage() {
                 </button>
 
                 {selectedFriend ? (
-                  <Avatar user={selectedFriendProfile} size={9} />
+                  <Avatar user={selectedFriendProfile} size={9} showStatus isOnline={onlineStatuses[selectedFriend]?.isOnline || false} />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold flex-shrink-0 border-2 border-yellow-400">
                     {selectedGroup?.name?.charAt(0).toUpperCase()}
@@ -1364,6 +1423,7 @@ export default function ChatPage() {
                       senderProfile={senderProfile}
                       chatId={selectedFriend ? getChatId(user.uid, selectedFriend) : `groups/${selectedGroup.id}/messages`}
                       isGroup={!!selectedGroup}
+                      currentUserId={user.uid}
                     />
                   );
                 })}
