@@ -697,6 +697,7 @@ export default function FeedPage() {
   const [members, setMembers] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [activeTab, setActiveTab] = useState('feed');
+  const [peopleSearch, setPeopleSearch] = useState('');
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
   const [incomingCall, setIncomingCall] = useState(null);
@@ -1195,60 +1196,96 @@ export default function FeedPage() {
           {/* ── People Tab ── */}
           {activeTab === 'people' && (
             <div className="space-y-4">
-              {/* People You May Know — mobile visible */}
-              {suggestions.length > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl lg:hidden">
-                  <h3 className="text-white font-bold mb-3 text-sm uppercase tracking-wide">✨ People You May Know</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {suggestions.slice(0, 6).map(m => (
-                      <MobilePersonCard
-                        key={m.uid || m.id}
-                        member={m}
-                        currentUser={user}
-                        currentProfile={userProfile}
-                        onUpdate={refreshProfile}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* All Members */}
-              <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl">
-                <h2 className="text-white font-bold text-lg mb-4">👥 All Members</h2>
-                {members.length === 0 ? (
-                  <p className="text-blue-300 text-center py-8">No other members yet.</p>
-                ) : (
-                  <>
-                    {/* Mobile: card grid */}
-                    <div className="grid grid-cols-2 gap-3 sm:hidden">
-                      {members.map(m => (
-                        <MobilePersonCard
-                          key={m.uid || m.id}
-                          member={m}
-                          currentUser={user}
-                          currentProfile={userProfile}
-                          onUpdate={refreshProfile}
-                        />
-                      ))}
-                    </div>
-                    {/* Desktop: list */}
-                    <div className="hidden sm:block space-y-1">
-                      {members.map(m => (
-                        <FriendCard
-                          key={m.uid || m.id}
-                          member={m}
-                          currentUser={user}
-                          currentProfile={userProfile}
-                          onUpdate={refreshProfile}
-                          isOnline={onlineStatuses[m.uid || m.id]?.isOnline || false}
-                          lastSeen={onlineStatuses[m.uid || m.id]?.lastSeen}
-                        />
-                      ))}
-                    </div>
-                  </>
+              {/* Search Bar */}
+              <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
+                <svg className="w-5 h-5 text-blue-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input
+                  type="text"
+                  value={peopleSearch}
+                  onChange={e => setPeopleSearch(e.target.value)}
+                  placeholder="Search members by name, school, or position..."
+                  className="flex-1 bg-transparent text-white placeholder-blue-300 focus:outline-none text-sm"
+                  autoComplete="off"
+                />
+                {peopleSearch && (
+                  <button onClick={() => setPeopleSearch('')} className="text-blue-300 hover:text-white transition-colors text-lg leading-none">✕</button>
                 )}
               </div>
+
+              {(() => {
+                const q = peopleSearch.trim().toLowerCase();
+                const filtered = q
+                  ? members.filter(m =>
+                      (m.fullName || '').toLowerCase().includes(q) ||
+                      (m.school || '').toLowerCase().includes(q) ||
+                      (m.position || '').toLowerCase().includes(q)
+                    )
+                  : members;
+
+                return (
+                  <>
+                    {/* People You May Know — only when not searching */}
+                    {!q && suggestions.length > 0 && (
+                      <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl lg:hidden">
+                        <h3 className="text-white font-bold mb-3 text-sm uppercase tracking-wide">✨ People You May Know</h3>
+                        <div className="grid grid-cols-2 gap-3">
+                          {suggestions.slice(0, 6).map(m => (
+                            <MobilePersonCard
+                              key={m.uid || m.id}
+                              member={m}
+                              currentUser={user}
+                              currentProfile={userProfile}
+                              onUpdate={refreshProfile}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-4 shadow-xl">
+                      <h2 className="text-white font-bold text-lg mb-4">
+                        {q ? `🔍 Results for "${peopleSearch}" (${filtered.length})` : '👥 All Members'}
+                      </h2>
+                      {filtered.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-4xl mb-2">🔍</p>
+                          <p className="text-blue-300">No members found for "{peopleSearch}"</p>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-3 sm:hidden">
+                            {filtered.map(m => (
+                              <MobilePersonCard
+                                key={m.uid || m.id}
+                                member={m}
+                                currentUser={user}
+                                currentProfile={userProfile}
+                                onUpdate={refreshProfile}
+                              />
+                            ))}
+                          </div>
+                          <div className="hidden sm:block space-y-1">
+                            {filtered.map(m => (
+                              <FriendCard
+                                key={m.uid || m.id}
+                                member={m}
+                                currentUser={user}
+                                currentProfile={userProfile}
+                                onUpdate={refreshProfile}
+                                isOnline={onlineStatuses[m.uid || m.id]?.isOnline || false}
+                                lastSeen={onlineStatuses[m.uid || m.id]?.lastSeen}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
