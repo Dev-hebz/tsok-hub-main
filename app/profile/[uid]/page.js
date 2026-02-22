@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs, orderBy, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { useAuth } from '../../../lib/AuthContext';
 import { uploadToCloudinary } from '../../../lib/cloudinary';
@@ -103,11 +103,17 @@ export default function ProfilePage() {
     try {
       const q = query(
         collection(db, 'posts'),
-        where('authorId', '==', uid),
-        orderBy('createdAt', 'desc')
+        where('authorId', '==', uid)
       );
       const snap = await getDocs(q);
-      setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const sorted = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const aTime = a.createdAt?.seconds || 0;
+          const bTime = b.createdAt?.seconds || 0;
+          return bTime - aTime;
+        });
+      setPosts(sorted);
     } catch (err) {
       console.error('Error fetching posts:', err);
     }
