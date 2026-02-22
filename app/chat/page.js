@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  collection, addDoc, query, orderBy, onSnapshot,
+  collection, addDoc, query, orderBy, onSnapshot, where,
   doc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc,
   setDoc, arrayUnion, arrayRemove
 } from 'firebase/firestore';
