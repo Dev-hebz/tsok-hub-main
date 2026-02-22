@@ -846,40 +846,55 @@ export default function ChatPage() {
     }
   };
 
-  // Listen for incoming calls
+  // Listen for incoming calls — optimized with targeted queries
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'calls'), orderBy('createdAt', 'desc'));
-    const unsub = onSnapshot(q, async snap => {
+
+    // Listen for DM calls where I am the callee
+    const dmQuery = query(
+      collection(db, 'calls'),
+      where('calleeId', '==', user.uid),
+      where('status', '==', 'calling')
+    );
+
+    const dmUnsub = onSnapshot(dmQuery, async snap => {
       for (const change of snap.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
-          // DM incoming call
-          if (data.calleeId === user.uid && data.status === 'calling' && data.calleeId !== 'group') {
-            const callerSnap = await getDoc(doc(db, 'users', data.callerId));
-            const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-            setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
-          }
-          // Group incoming call — notify members except caller
-          if (data.calleeId === 'group' && data.status === 'calling' &&
-              data.callerId !== user.uid && (data.members || []).includes(user.uid)) {
-            const callerSnap = await getDoc(doc(db, 'users', data.callerId));
-            const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
-            setIncomingCall({
-              callDoc: change.doc.ref,
-              callerProfile,
-              data,
-              isGroup: true,
-              groupName: data.groupName,
-            });
-          }
-          if (data.status === 'ended') {
-            setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
-          }
+          const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+          const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
+          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+        }
+        if (change.type === 'removed') {
+          setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
         }
       }
     });
-    return () => unsub();
+
+    // Listen for group calls where I am a member
+    const groupQuery = query(
+      collection(db, 'calls'),
+      where('calleeId', '==', 'group'),
+      where('status', '==', 'calling')
+    );
+
+    const groupUnsub = onSnapshot(groupQuery, async snap => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' || change.type === 'modified') {
+          const data = change.doc.data();
+          if (data.callerId === user.uid) continue; // skip my own calls
+          if (!(data.members || []).includes(user.uid)) continue;
+          const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+          const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
+          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
+        }
+        if (change.type === 'removed') {
+          setIncomingCall(prev => prev?.callDoc?.id === change.doc.id ? null : prev);
+        }
+      }
+    });
+
+    return () => { dmUnsub(); groupUnsub(); };
   }, [user]);
 
   // Start WebRTC call
@@ -993,33 +1008,43 @@ export default function ChatPage() {
       {/* Incoming Call Banner */}
       {incomingCall && !activeCall && (
         <motion.div
-          initial={{ y: -100, opacity: 0 }}
+          initial={{ y: -120, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          className="fixed top-4 left-1/2 -translate-x-1/2 z-[400] bg-blue-900/95 backdrop-blur-lg border border-yellow-400/50 rounded-2xl shadow-2xl px-5 py-4 flex items-center gap-4 min-w-[300px]"
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="fixed inset-x-0 top-0 z-[500] flex flex-col items-center"
         >
-          <div className="relative">
-            <Avatar user={incomingCall.callerProfile} size={12} />
-            <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-blue-900 animate-pulse"></span>
-          </div>
-          <div className="flex-1">
-            <p className="text-white font-bold text-sm">{incomingCall.callerProfile?.fullName}</p>
-            <p className="text-blue-300 text-xs animate-pulse">
-              {incomingCall.isGroup ? `📹 Group call: ${incomingCall.groupName}` : '📹 Incoming video call...'}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={declineCall}
-              className="w-10 h-10 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
-            <button onClick={answerCall}
-              className="w-10 h-10 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center transition-all">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-              </svg>
-            </button>
+          {/* Full-width banner on mobile, card on desktop */}
+          <div className="w-full sm:max-w-sm sm:mx-auto sm:mt-4 sm:rounded-2xl bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 border-b sm:border border-yellow-400/60 shadow-2xl px-5 py-4">
+            {/* Pulse ring animation */}
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-green-400/30 animate-ping" style={{width:56,height:56}}></div>
+                <Avatar user={incomingCall.callerProfile} size={14} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-base truncate">{incomingCall.callerProfile?.fullName}</p>
+                <p className="text-green-300 text-sm font-medium animate-pulse">
+                  {incomingCall.isGroup ? `📹 Group call: ${incomingCall.groupName}` : '📹 Incoming video call...'}
+                </p>
+              </div>
+            </div>
+            {/* Big centered buttons */}
+            <div className="flex gap-4 mt-4 justify-center">
+              <button onClick={declineCall}
+                className="flex-1 max-w-[140px] h-14 rounded-2xl bg-red-500 hover:bg-red-600 active:scale-95 text-white flex items-center justify-center gap-2 font-bold text-sm transition-all shadow-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Decline
+              </button>
+              <button onClick={answerCall}
+                className="flex-1 max-w-[140px] h-14 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white flex items-center justify-center gap-2 font-bold text-sm transition-all shadow-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                Answer
+              </button>
+            </div>
           </div>
         </motion.div>
       )}

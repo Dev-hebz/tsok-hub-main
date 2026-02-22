@@ -637,6 +637,7 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState('feed');
   const [toast, setToast] = useState({ visible: false, message: '', type: 'success' });
   const [alertModal, setAlertModal] = useState({ visible: false, title: '', message: '', type: 'info' });
+  const [incomingCall, setIncomingCall] = useState(null);
   const fileRef = useRef(null);
 
   // Online statuses — must be after members state
@@ -675,6 +676,37 @@ export default function FeedPage() {
         .filter(m => (m.uid || m.id) !== user.uid);
       setMembers(all);
     });
+  }, [user]);
+
+  // Listen for incoming calls (works on any page)
+  useEffect(() => {
+    if (!user) return;
+    const dmQuery = query(collection(db, 'calls'), where('calleeId', '==', user.uid), where('status', '==', 'calling'));
+    const dmUnsub = onSnapshot(dmQuery, async snap => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' || change.type === 'modified') {
+          const data = change.doc.data();
+          const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+          const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
+          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data });
+        }
+        if (change.type === 'removed') setIncomingCall(null);
+      }
+    });
+    const groupQuery = query(collection(db, 'calls'), where('calleeId', '==', 'group'), where('status', '==', 'calling'));
+    const groupUnsub = onSnapshot(groupQuery, async snap => {
+      for (const change of snap.docChanges()) {
+        if (change.type === 'added' || change.type === 'modified') {
+          const data = change.doc.data();
+          if (data.callerId === user.uid || !(data.members || []).includes(user.uid)) continue;
+          const callerSnap = await getDoc(doc(db, 'users', data.callerId));
+          const callerProfile = callerSnap.exists() ? { id: callerSnap.id, ...callerSnap.data() } : null;
+          setIncomingCall({ callDoc: change.doc.ref, callerProfile, data, isGroup: true, groupName: data.groupName });
+        }
+        if (change.type === 'removed') setIncomingCall(null);
+      }
+    });
+    return () => { dmUnsub(); groupUnsub(); };
   }, [user]);
 
   // Friend requests incoming
@@ -750,8 +782,63 @@ export default function FeedPage() {
     );
   }).slice(0, 6);
 
+  const answerCallFromFeed = () => {
+    if (!incomingCall) return;
+    setIncomingCall(null);
+    // Navigate to chat — the call listener there will handle the rest
+    router.push('/chat');
+  };
+
+  const declineCallFromFeed = async () => {
+    if (!incomingCall) return;
+    try { await updateDoc(incomingCall.callDoc, { status: 'ended' }); } catch {}
+    setIncomingCall(null);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950">
+
+      {/* Incoming Call Banner — visible on feed page too */}
+      {incomingCall && (
+        <motion.div
+          initial={{ y: -120, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          className="fixed inset-x-0 top-0 z-[500] flex flex-col items-center"
+        >
+          <div className="w-full sm:max-w-sm sm:mx-auto sm:mt-4 sm:rounded-2xl bg-gradient-to-r from-blue-900 via-blue-800 to-blue-900 border-b sm:border border-yellow-400/60 shadow-2xl px-5 py-4">
+            <div className="flex items-center gap-4">
+              <div className="relative flex-shrink-0">
+                <div className="absolute inset-0 rounded-full bg-green-400/30 animate-ping" style={{width:56,height:56}}></div>
+                <Avatar user={incomingCall.callerProfile} size={14} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold text-base truncate">{incomingCall.callerProfile?.fullName}</p>
+                <p className="text-green-300 text-sm font-medium animate-pulse">
+                  {incomingCall.isGroup ? `📹 Group call: ${incomingCall.groupName}` : '📹 Incoming video call...'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-4 mt-4 justify-center">
+              <button onClick={declineCallFromFeed}
+                className="flex-1 max-w-[140px] h-14 rounded-2xl bg-red-500 hover:bg-red-600 active:scale-95 text-white flex items-center justify-center gap-2 font-bold text-sm transition-all shadow-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Decline
+              </button>
+              <button onClick={answerCallFromFeed}
+                className="flex-1 max-w-[140px] h-14 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white flex items-center justify-center gap-2 font-bold text-sm transition-all shadow-lg">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                Answer
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Global Toast */}
       <Toast visible={toast.visible} message={toast.message} type={toast.type} />
 
