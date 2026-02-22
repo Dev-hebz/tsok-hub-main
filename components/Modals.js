@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Toast Notification ──────────────────────────────────────────
@@ -45,40 +47,42 @@ export const AlertModal = ({ visible, title, message, type = 'info', onClose }) 
   };
   const style = icons[type];
 
-  return (
+  useEffect(() => {
+    if (visible) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => { document.body.style.overflow = ''; };
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return createPortal(
     <AnimatePresence>
       {visible && (
         <>
-          {/* Backdrop */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150]"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 99998 }}
             onClick={onClose}
           />
-          {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            initial={{ opacity: 0, scale: 0.85, y: 24 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="fixed inset-0 flex items-center justify-center z-[160] px-4 pointer-events-none"
+            exit={{ opacity: 0, scale: 0.85, y: 24 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '1rem', pointerEvents: 'none' }}
           >
-            <div className={`bg-blue-900/95 backdrop-blur-xl border rounded-2xl p-6 w-full max-w-sm shadow-2xl pointer-events-auto ${style.bg}`}>
-              {/* Icon */}
+            <div className={`bg-blue-900 border rounded-2xl p-6 w-full max-w-sm shadow-2xl pointer-events-auto ${style.bg}`}
+              style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1a3050 100%)' }}>
               <div className="flex justify-center mb-4">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl ${style.bg} border`}>
                   {style.emoji}
                 </div>
               </div>
-              {/* Content */}
               {title && <h3 className={`text-xl font-bold text-center mb-2 ${style.color}`}>{title}</h3>}
               <p className="text-blue-100 text-center text-sm leading-relaxed">{message}</p>
-              {/* Button */}
               <button
                 onClick={onClose}
-                className="mt-6 w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl transition-all text-sm"
+                className="mt-6 w-full py-3 bg-yellow-400 hover:bg-yellow-300 active:scale-95 text-blue-900 font-bold rounded-xl transition-all text-sm"
               >
                 OK
               </button>
@@ -86,7 +90,8 @@ export const AlertModal = ({ visible, title, message, type = 'info', onClose }) 
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
@@ -108,7 +113,19 @@ export const ConfirmModal = ({
   };
   const style = styles[type] || styles.warning;
 
-  return (
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (visible) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return createPortal(
     <AnimatePresence>
       {visible && (
         <>
@@ -117,38 +134,37 @@ export const ConfirmModal = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150]"
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 99998 }}
             onClick={onCancel}
           />
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            initial={{ opacity: 0, scale: 0.85, y: 24 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: 20 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="fixed inset-0 flex items-center justify-center z-[160] px-4 pointer-events-none"
+            exit={{ opacity: 0, scale: 0.85, y: 24 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+            style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: '1rem', pointerEvents: 'none' }}
           >
-            <div className={`bg-blue-900/95 backdrop-blur-xl border ${style.border} rounded-2xl p-6 w-full max-w-sm shadow-2xl pointer-events-auto`}>
+            <div className={`bg-blue-900 border ${style.border} rounded-2xl p-6 w-full max-w-sm shadow-2xl pointer-events-auto`}
+              style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1a3050 100%)' }}>
               {/* Icon */}
               <div className="flex justify-center mb-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl bg-white/10 border border-white/20`}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl bg-white/10 border border-white/20">
                   {style.emoji}
                 </div>
               </div>
-              {/* Content */}
               {title && <h3 className="text-xl font-bold text-white text-center mb-2">{title}</h3>}
               <p className="text-blue-200 text-center text-sm leading-relaxed">{message}</p>
-              {/* Buttons */}
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={onCancel}
-                  className="flex-1 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-xl transition-all text-sm border border-white/20"
+                  className="flex-1 py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white font-semibold rounded-xl transition-all text-sm border border-white/20"
                 >
                   {cancelText}
                 </button>
                 <button
                   onClick={onConfirm}
-                  className={`flex-1 py-3 font-bold rounded-xl transition-all text-sm ${style.confirmBtn}`}
+                  className={`flex-1 py-3 font-bold rounded-xl transition-all text-sm active:scale-95 ${style.confirmBtn}`}
                 >
                   {confirmText}
                 </button>
@@ -157,6 +173,7 @@ export const ConfirmModal = ({
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
