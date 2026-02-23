@@ -759,19 +759,22 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ caption: '', description: '', imageUrl: '', videoUrl: '' });
   const fileRef = useRef(null);
   const videoRef = useRef(null);
+
+  const openAdd = () => { setEditingId(null); setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' }); setShowForm(true); };
+  const openEdit = (post) => { setEditingId(post.id); setForm({ caption: post.caption || '', description: post.description || '', imageUrl: post.imageUrl || '', videoUrl: post.videoUrl || '' }); setShowForm(true); };
+  const closeForm = () => { setShowForm(false); setEditingId(null); setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' }); };
 
   const uploadFile = async (file, type) => {
     setUploading(true);
     try {
       const { uploadToCloudinary, uploadVideoToCloudinary } = await import('../../lib/cloudinary');
-      const url = type === 'video'
-        ? await uploadVideoToCloudinary(file, 'tsok-landing')
-        : await uploadToCloudinary(file, 'tsok-landing');
+      const url = type === 'video' ? await uploadVideoToCloudinary(file, 'tsok-landing') : await uploadToCloudinary(file, 'tsok-landing');
       setForm(f => ({ ...f, [type === 'video' ? 'videoUrl' : 'imageUrl']: url }));
-    } catch (e) { showToast('Upload failed', 'error'); }
+    } catch { showToast('Upload failed', 'error'); }
     finally { setUploading(false); }
   };
 
@@ -779,10 +782,14 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
     if (!form.caption && !form.imageUrl && !form.videoUrl) return showToast('Add caption or media', 'error');
     setSaving(true);
     try {
-      await addDoc(collection(db, 'landingPosts'), { ...form, createdAt: serverTimestamp() });
-      showToast('Post added!', 'success');
-      setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' });
-      setShowForm(false);
+      if (editingId) {
+        await updateDoc(doc(db, 'landingPosts', editingId), { caption: form.caption, description: form.description, imageUrl: form.imageUrl, videoUrl: form.videoUrl });
+        showToast('Post updated!', 'success');
+      } else {
+        await addDoc(collection(db, 'landingPosts'), { ...form, createdAt: serverTimestamp() });
+        showToast('Post added!', 'success');
+      }
+      closeForm();
       onRefresh();
     } catch { showToast('Error saving post', 'error'); }
     finally { setSaving(false); }
@@ -797,14 +804,14 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
   return (
     <div>
       <div className="mb-6">
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={showForm ? closeForm : openAdd}
           className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
           {showForm ? '✕ Cancel' : '+ Add News Post'}
         </button>
       </div>
       {showForm && (
         <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 mb-6">
-          <h3 className="text-white font-bold text-lg mb-4">New News/Update Post</h3>
+          <h3 className="text-white font-bold text-lg mb-4">{editingId ? '✏️ Edit Post' : 'New News/Update Post'}</h3>
           <div className="space-y-3">
             <input value={form.caption} onChange={e => setForm(f => ({ ...f, caption: e.target.value }))}
               placeholder="Caption / Title" className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
@@ -820,6 +827,8 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
                 🎬 {form.videoUrl ? '✅ Video Added' : 'Add Video'}
               </button>
+              {form.imageUrl && <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: '' }))} className="px-3 py-2 bg-red-500/20 text-red-300 rounded-xl text-sm transition-all">✕ Remove Image</button>}
+              {form.videoUrl && <button type="button" onClick={() => setForm(f => ({ ...f, videoUrl: '' }))} className="px-3 py-2 bg-red-500/20 text-red-300 rounded-xl text-sm transition-all">✕ Remove Video</button>}
               {uploading && <span className="text-yellow-400 text-sm self-center animate-pulse">⏳ Uploading...</span>}
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && uploadFile(e.target.files[0], 'image')} />
@@ -830,7 +839,7 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
           <div className="flex gap-3 mt-4">
             <button onClick={handleSave} disabled={saving || uploading}
               className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60 transition-all">
-              {saving ? 'Saving...' : '💾 Save Post'}
+              {saving ? 'Saving...' : editingId ? '💾 Update Post' : '💾 Save Post'}
             </button>
           </div>
         </div>
@@ -846,10 +855,16 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
             <div className="p-3">
               {post.caption && <p className="text-white font-semibold text-sm mb-1">{post.caption}</p>}
               {post.description && <p className="text-blue-300 text-xs line-clamp-2">{post.description}</p>}
-              <button onClick={() => handleDelete(post.id)}
-                className="mt-3 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
-                🗑️ Delete
-              </button>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => openEdit(post)}
+                  className="px-3 py-1.5 bg-yellow-400/20 hover:bg-yellow-400/40 text-yellow-300 rounded-lg text-xs font-semibold transition-all">
+                  ✏️ Edit
+                </button>
+                <button onClick={() => handleDelete(post.id)}
+                  className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
+                  🗑️ Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -864,8 +879,13 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [form, setForm] = useState({ name: '', logoUrl: '', link: '', order: sponsors.length + 1 });
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState({ name: '', logoUrl: '', link: '', order: '' });
   const fileRef = useRef(null);
+
+  const openAdd = () => { setEditingId(null); setForm({ name: '', logoUrl: '', link: '', order: sponsors.length + 1 }); setShowForm(true); };
+  const openEdit = (sp) => { setEditingId(sp.id); setForm({ name: sp.name || '', logoUrl: sp.logoUrl || '', link: sp.link || '', order: sp.order || '' }); setShowForm(true); };
+  const closeForm = () => { setShowForm(false); setEditingId(null); };
 
   const uploadLogo = async (file) => {
     setUploading(true);
@@ -881,10 +901,15 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
     if (!form.name && !form.logoUrl) return showToast('Add name or logo', 'error');
     setSaving(true);
     try {
-      await addDoc(collection(db, 'sponsors'), { ...form, order: Number(form.order) });
-      showToast('Sponsor added!', 'success');
-      setForm({ name: '', logoUrl: '', link: '', order: sponsors.length + 2 });
-      setShowForm(false);
+      const data = { name: form.name, logoUrl: form.logoUrl, link: form.link, order: Number(form.order) || 0 };
+      if (editingId) {
+        await updateDoc(doc(db, 'sponsors', editingId), data);
+        showToast('Sponsor updated!', 'success');
+      } else {
+        await addDoc(collection(db, 'sponsors'), data);
+        showToast('Sponsor added!', 'success');
+      }
+      closeForm();
       onRefresh();
     } catch { showToast('Error saving', 'error'); }
     finally { setSaving(false); }
@@ -899,14 +924,14 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
   return (
     <div>
       <div className="mb-6">
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={showForm ? closeForm : openAdd}
           className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
           {showForm ? '✕ Cancel' : '+ Add Sponsor'}
         </button>
       </div>
       {showForm && (
         <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-6">
-          <h3 className="text-white font-bold text-lg mb-4">New Sponsor / Partner</h3>
+          <h3 className="text-white font-bold text-lg mb-4">{editingId ? '✏️ Edit Sponsor' : 'New Sponsor / Partner'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Sponsor name" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
@@ -914,11 +939,12 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
               placeholder="Website URL (optional)" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
             <input value={form.order} type="number" onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
               placeholder="Display order" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-wrap">
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
                 🖼️ {form.logoUrl ? '✅ Logo Added' : 'Upload Logo'}
               </button>
+              {form.logoUrl && <button type="button" onClick={() => setForm(f => ({ ...f, logoUrl: '' }))} className="px-3 py-2 bg-red-500/20 text-red-300 rounded-xl text-sm">✕ Remove</button>}
               {uploading && <span className="text-yellow-400 text-xs animate-pulse">Uploading...</span>}
             </div>
           </div>
@@ -927,7 +953,7 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
           <div className="flex gap-3 mt-4">
             <button onClick={handleSave} disabled={saving || uploading}
               className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60">
-              {saving ? 'Saving...' : '💾 Save Sponsor'}
+              {saving ? 'Saving...' : editingId ? '💾 Update Sponsor' : '💾 Save Sponsor'}
             </button>
           </div>
         </div>
@@ -938,10 +964,16 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
             {sp.logoUrl && <img src={sp.logoUrl} alt={sp.name} className="max-h-12 max-w-[80px] object-contain" />}
             <p className="text-white text-xs font-semibold">{sp.name}</p>
             {sp.link && <a href={sp.link} target="_blank" rel="noopener noreferrer" className="text-blue-300 text-xs underline truncate w-full">{sp.link}</a>}
-            <button onClick={() => handleDelete(sp.id)}
-              className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
-              🗑️ Remove
-            </button>
+            <div className="flex gap-1.5 mt-1">
+              <button onClick={() => openEdit(sp)}
+                className="px-2.5 py-1 bg-yellow-400/20 hover:bg-yellow-400/40 text-yellow-300 rounded-lg text-xs font-semibold transition-all">
+                ✏️ Edit
+              </button>
+              <button onClick={() => handleDelete(sp.id)}
+                className="px-2.5 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
+                🗑️
+              </button>
+            </div>
           </div>
         ))}
         {sponsors.length === 0 && <p className="text-blue-300 col-span-full text-center py-10">No sponsors yet.</p>}
@@ -954,16 +986,25 @@ function SponsorsTab({ sponsors, onRefresh, showToast }) {
 function ActivitiesTab({ activities, onRefresh, showToast }) {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: '', date: '', location: '', description: '' });
+
+  const openAdd = () => { setEditingId(null); setForm({ title: '', date: '', location: '', description: '' }); setShowForm(true); };
+  const openEdit = (act) => { setEditingId(act.id); setForm({ title: act.title || '', date: act.date || '', location: act.location || '', description: act.description || '' }); setShowForm(true); };
+  const closeForm = () => { setShowForm(false); setEditingId(null); };
 
   const handleSave = async () => {
     if (!form.title || !form.date) return showToast('Title and date required', 'error');
     setSaving(true);
     try {
-      await addDoc(collection(db, 'activities'), form);
-      showToast('Activity added!', 'success');
-      setForm({ title: '', date: '', location: '', description: '' });
-      setShowForm(false);
+      if (editingId) {
+        await updateDoc(doc(db, 'activities', editingId), form);
+        showToast('Activity updated!', 'success');
+      } else {
+        await addDoc(collection(db, 'activities'), form);
+        showToast('Activity added!', 'success');
+      }
+      closeForm();
       onRefresh();
     } catch { showToast('Error saving', 'error'); }
     finally { setSaving(false); }
@@ -980,14 +1021,14 @@ function ActivitiesTab({ activities, onRefresh, showToast }) {
   return (
     <div>
       <div className="mb-6">
-        <button onClick={() => setShowForm(!showForm)}
+        <button onClick={showForm ? closeForm : openAdd}
           className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
           {showForm ? '✕ Cancel' : '+ Add Activity'}
         </button>
       </div>
       {showForm && (
         <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-6">
-          <h3 className="text-white font-bold text-lg mb-4">New Activity / Event</h3>
+          <h3 className="text-white font-bold text-lg mb-4">{editingId ? '✏️ Edit Activity' : 'New Activity / Event'}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
               placeholder="Activity title *" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
@@ -1001,7 +1042,7 @@ function ActivitiesTab({ activities, onRefresh, showToast }) {
           <div className="flex gap-3 mt-4">
             <button onClick={handleSave} disabled={saving}
               className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60">
-              {saving ? 'Saving...' : '💾 Save Activity'}
+              {saving ? 'Saving...' : editingId ? '💾 Update Activity' : '💾 Save Activity'}
             </button>
           </div>
         </div>
@@ -1019,10 +1060,16 @@ function ActivitiesTab({ activities, onRefresh, showToast }) {
               {act.description && <p className="text-blue-200 text-xs">{act.description}</p>}
               {!isUpcoming(act.date) && <span className="text-xs text-blue-400">Past event</span>}
             </div>
-            <button onClick={() => handleDelete(act.id)}
-              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all flex-shrink-0">
-              🗑️
-            </button>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={() => openEdit(act)}
+                className="px-3 py-1.5 bg-yellow-400/20 hover:bg-yellow-400/40 text-yellow-300 rounded-lg text-xs font-semibold transition-all">
+                ✏️ Edit
+              </button>
+              <button onClick={() => handleDelete(act.id)}
+                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
+                🗑️
+              </button>
+            </div>
           </div>
         ))}
         {activities.length === 0 && <p className="text-blue-300 text-center py-10">No activities yet.</p>}
