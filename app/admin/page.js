@@ -2,8 +2,8 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, orderBy, getDoc, serverTimestamp } from 'firebase/firestore';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '../../lib/firebase';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +14,9 @@ import { Toast, ConfirmModal, AlertModal } from '../../components/Modals';
 export default function Admin() {
   const [websites, setWebsites] = useState([]);
   const [members, setMembers] = useState([]);
+  const [landingPosts, setLandingPosts] = useState([]);
+  const [sponsors, setSponsors] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [activeTab, setActiveTab] = useState('websites');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -84,6 +87,7 @@ export default function Admin() {
     if (isAuthenticated) {
       fetchWebsites();
       fetchMembers();
+      fetchLandingData();
     }
   }, [isAuthenticated]);
 
@@ -103,6 +107,21 @@ export default function Admin() {
       setMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     } catch (err) {
       console.error('Error fetching members:', err);
+    }
+  };
+
+  const fetchLandingData = async () => {
+    try {
+      const [postsSnap, sponsorsSnap, activitiesSnap] = await Promise.all([
+        getDocs(query(collection(db, 'landingPosts'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'sponsors'), orderBy('order', 'asc'))),
+        getDocs(query(collection(db, 'activities'), orderBy('date', 'asc'))),
+      ]);
+      setLandingPosts(postsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setSponsors(sponsorsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setActivities(activitiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error('Error fetching landing data:', err);
     }
   };
 
@@ -395,26 +414,26 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         {/* Tab Navigation */}
-        <div className="flex gap-3 mb-8">
-          <button
-            onClick={() => setActiveTab('websites')}
-            className={`px-6 py-3 rounded-xl font-bold transition-all ${
-              activeTab === 'websites'
-                ? 'bg-yellow-400 text-blue-900'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
+        <div className="flex flex-wrap gap-2 mb-8">
+          <button onClick={() => setActiveTab('websites')}
+            className={`px-4 py-2.5 rounded-xl font-bold transition-all text-sm ${activeTab === 'websites' ? 'bg-yellow-400 text-blue-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
             🌐 Websites ({websites.length})
           </button>
-          <button
-            onClick={() => setActiveTab('members')}
-            className={`px-6 py-3 rounded-xl font-bold transition-all ${
-              activeTab === 'members'
-                ? 'bg-yellow-400 text-blue-900'
-                : 'bg-white/10 text-white hover:bg-white/20'
-            }`}
-          >
+          <button onClick={() => setActiveTab('members')}
+            className={`px-4 py-2.5 rounded-xl font-bold transition-all text-sm ${activeTab === 'members' ? 'bg-yellow-400 text-blue-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
             👥 Members ({members.length})
+          </button>
+          <button onClick={() => setActiveTab('posts')}
+            className={`px-4 py-2.5 rounded-xl font-bold transition-all text-sm ${activeTab === 'posts' ? 'bg-yellow-400 text-blue-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+            📣 News Posts ({landingPosts.length})
+          </button>
+          <button onClick={() => setActiveTab('sponsors')}
+            className={`px-4 py-2.5 rounded-xl font-bold transition-all text-sm ${activeTab === 'sponsors' ? 'bg-yellow-400 text-blue-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+            🤝 Sponsors ({sponsors.length})
+          </button>
+          <button onClick={() => setActiveTab('activities')}
+            className={`px-4 py-2.5 rounded-xl font-bold transition-all text-sm ${activeTab === 'activities' ? 'bg-yellow-400 text-blue-900' : 'bg-white/10 text-white hover:bg-white/20'}`}>
+            📅 Activities ({activities.length})
           </button>
         </div>
 
@@ -710,11 +729,303 @@ export default function Admin() {
             </div>
           </div>
         )}
+
+        {/* ── LANDING POSTS TAB ── */}
+        {activeTab === 'posts' && (
+          <LandingPostsTab posts={landingPosts} onRefresh={fetchLandingData} showToast={showToast} />
+        )}
+
+        {/* ── SPONSORS TAB ── */}
+        {activeTab === 'sponsors' && (
+          <SponsorsTab sponsors={sponsors} onRefresh={fetchLandingData} showToast={showToast} />
+        )}
+
+        {/* ── ACTIVITIES TAB ── */}
+        {activeTab === 'activities' && (
+          <ActivitiesTab activities={activities} onRefresh={fetchLandingData} showToast={showToast} />
+        )}
       </div>
 
       {/* Footer */}
       <div className="text-center py-6 text-blue-400 text-xs relative z-10">
         © 2026 TSOK Hub
+      </div>
+    </div>
+  );
+}
+
+// ── LANDING POSTS TAB ────────────────────────────────────────────
+function LandingPostsTab({ posts, onRefresh, showToast }) {
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({ caption: '', description: '', imageUrl: '', videoUrl: '' });
+  const fileRef = useRef(null);
+  const videoRef = useRef(null);
+
+  const uploadFile = async (file, type) => {
+    setUploading(true);
+    try {
+      const { uploadToCloudinary, uploadVideoToCloudinary } = await import('../../lib/cloudinary');
+      const url = type === 'video'
+        ? await uploadVideoToCloudinary(file, 'tsok-landing')
+        : await uploadToCloudinary(file, 'tsok-landing');
+      setForm(f => ({ ...f, [type === 'video' ? 'videoUrl' : 'imageUrl']: url }));
+    } catch (e) { showToast('Upload failed', 'error'); }
+    finally { setUploading(false); }
+  };
+
+  const handleSave = async () => {
+    if (!form.caption && !form.imageUrl && !form.videoUrl) return showToast('Add caption or media', 'error');
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'landingPosts'), { ...form, createdAt: serverTimestamp() });
+      showToast('Post added!', 'success');
+      setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' });
+      setShowForm(false);
+      onRefresh();
+    } catch { showToast('Error saving post', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    await deleteDoc(doc(db, 'landingPosts', id));
+    showToast('Post deleted', 'success');
+    onRefresh();
+  };
+
+  return (
+    <div>
+      <div className="mb-6">
+        <button onClick={() => setShowForm(!showForm)}
+          className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
+          {showForm ? '✕ Cancel' : '+ Add News Post'}
+        </button>
+      </div>
+      {showForm && (
+        <div className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 mb-6">
+          <h3 className="text-white font-bold text-lg mb-4">New News/Update Post</h3>
+          <div className="space-y-3">
+            <input value={form.caption} onChange={e => setForm(f => ({ ...f, caption: e.target.value }))}
+              placeholder="Caption / Title" className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Description (optional)" rows={3}
+              className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm resize-none" />
+            <div className="flex gap-3 flex-wrap">
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
+                📷 {form.imageUrl ? '✅ Image Added' : 'Add Image'}
+              </button>
+              <button type="button" onClick={() => videoRef.current?.click()}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
+                🎬 {form.videoUrl ? '✅ Video Added' : 'Add Video'}
+              </button>
+              {uploading && <span className="text-yellow-400 text-sm self-center animate-pulse">⏳ Uploading...</span>}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && uploadFile(e.target.files[0], 'image')} />
+            <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={e => e.target.files[0] && uploadFile(e.target.files[0], 'video')} />
+            {form.imageUrl && <img src={form.imageUrl} alt="Preview" className="w-full max-h-48 object-contain rounded-xl" />}
+            {form.videoUrl && <video src={form.videoUrl} controls className="w-full max-h-48 rounded-xl" />}
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={handleSave} disabled={saving || uploading}
+              className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60 transition-all">
+              {saving ? 'Saving...' : '💾 Save Post'}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {posts.map(post => (
+          <div key={post.id} className="bg-white/10 border border-white/20 rounded-2xl overflow-hidden">
+            {post.videoUrl
+              ? <video src={post.videoUrl} className="w-full aspect-video object-cover" muted preload="metadata" />
+              : post.imageUrl
+              ? <img src={post.imageUrl} alt={post.caption} className="w-full aspect-video object-cover" />
+              : null}
+            <div className="p-3">
+              {post.caption && <p className="text-white font-semibold text-sm mb-1">{post.caption}</p>}
+              {post.description && <p className="text-blue-300 text-xs line-clamp-2">{post.description}</p>}
+              <button onClick={() => handleDelete(post.id)}
+                className="mt-3 px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
+                🗑️ Delete
+              </button>
+            </div>
+          </div>
+        ))}
+        {posts.length === 0 && <p className="text-blue-300 col-span-full text-center py-10">No posts yet. Add one above!</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── SPONSORS TAB ─────────────────────────────────────────────────
+function SponsorsTab({ sponsors, onRefresh, showToast }) {
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({ name: '', logoUrl: '', link: '', order: sponsors.length + 1 });
+  const fileRef = useRef(null);
+
+  const uploadLogo = async (file) => {
+    setUploading(true);
+    try {
+      const { uploadToCloudinary } = await import('../../lib/cloudinary');
+      const url = await uploadToCloudinary(file, 'tsok-sponsors');
+      setForm(f => ({ ...f, logoUrl: url }));
+    } catch { showToast('Upload failed', 'error'); }
+    finally { setUploading(false); }
+  };
+
+  const handleSave = async () => {
+    if (!form.name && !form.logoUrl) return showToast('Add name or logo', 'error');
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'sponsors'), { ...form, order: Number(form.order) });
+      showToast('Sponsor added!', 'success');
+      setForm({ name: '', logoUrl: '', link: '', order: sponsors.length + 2 });
+      setShowForm(false);
+      onRefresh();
+    } catch { showToast('Error saving', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    await deleteDoc(doc(db, 'sponsors', id));
+    showToast('Sponsor removed', 'success');
+    onRefresh();
+  };
+
+  return (
+    <div>
+      <div className="mb-6">
+        <button onClick={() => setShowForm(!showForm)}
+          className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
+          {showForm ? '✕ Cancel' : '+ Add Sponsor'}
+        </button>
+      </div>
+      {showForm && (
+        <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-6">
+          <h3 className="text-white font-bold text-lg mb-4">New Sponsor / Partner</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Sponsor name" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <input value={form.link} onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
+              placeholder="Website URL (optional)" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <input value={form.order} type="number" onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
+              placeholder="Display order" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <div className="flex gap-2 items-center">
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
+                🖼️ {form.logoUrl ? '✅ Logo Added' : 'Upload Logo'}
+              </button>
+              {uploading && <span className="text-yellow-400 text-xs animate-pulse">Uploading...</span>}
+            </div>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && uploadLogo(e.target.files[0])} />
+          {form.logoUrl && <img src={form.logoUrl} alt="Preview" className="mt-3 h-16 object-contain rounded-lg" />}
+          <div className="flex gap-3 mt-4">
+            <button onClick={handleSave} disabled={saving || uploading}
+              className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60">
+              {saving ? 'Saving...' : '💾 Save Sponsor'}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {sponsors.map(sp => (
+          <div key={sp.id} className="bg-white/10 border border-white/20 rounded-2xl p-4 flex flex-col items-center gap-2 text-center">
+            {sp.logoUrl && <img src={sp.logoUrl} alt={sp.name} className="max-h-12 max-w-[80px] object-contain" />}
+            <p className="text-white text-xs font-semibold">{sp.name}</p>
+            {sp.link && <a href={sp.link} target="_blank" rel="noopener noreferrer" className="text-blue-300 text-xs underline truncate w-full">{sp.link}</a>}
+            <button onClick={() => handleDelete(sp.id)}
+              className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all">
+              🗑️ Remove
+            </button>
+          </div>
+        ))}
+        {sponsors.length === 0 && <p className="text-blue-300 col-span-full text-center py-10">No sponsors yet.</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── ACTIVITIES TAB ───────────────────────────────────────────────
+function ActivitiesTab({ activities, onRefresh, showToast }) {
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title: '', date: '', location: '', description: '' });
+
+  const handleSave = async () => {
+    if (!form.title || !form.date) return showToast('Title and date required', 'error');
+    setSaving(true);
+    try {
+      await addDoc(collection(db, 'activities'), form);
+      showToast('Activity added!', 'success');
+      setForm({ title: '', date: '', location: '', description: '' });
+      setShowForm(false);
+      onRefresh();
+    } catch { showToast('Error saving', 'error'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    await deleteDoc(doc(db, 'activities', id));
+    showToast('Activity removed', 'success');
+    onRefresh();
+  };
+
+  const isUpcoming = (d) => d && new Date(d) >= new Date();
+
+  return (
+    <div>
+      <div className="mb-6">
+        <button onClick={() => setShowForm(!showForm)}
+          className="bg-yellow-400 text-blue-900 px-5 py-2.5 rounded-xl font-bold hover:bg-yellow-300 transition-colors">
+          {showForm ? '✕ Cancel' : '+ Add Activity'}
+        </button>
+      </div>
+      {showForm && (
+        <div className="bg-white/10 border border-white/20 rounded-2xl p-6 mb-6">
+          <h3 className="text-white font-bold text-lg mb-4">New Activity / Event</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="Activity title *" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <input value={form.date} type="date" onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+              className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+              placeholder="Location (optional)" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Description (optional)" className="px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={handleSave} disabled={saving}
+              className="px-6 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold rounded-xl text-sm disabled:opacity-60">
+              {saving ? 'Saving...' : '💾 Save Activity'}
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="space-y-3">
+        {activities.map(act => (
+          <div key={act.id} className={`bg-white/10 border rounded-2xl p-4 flex items-center gap-4 ${isUpcoming(act.date) ? 'border-yellow-400/40' : 'border-white/10 opacity-60'}`}>
+            <div className="flex-shrink-0 text-center bg-yellow-400/20 border border-yellow-400/40 rounded-xl px-3 py-2 min-w-[52px]">
+              <p className="text-yellow-400 text-xs font-bold uppercase">{new Date(act.date).toLocaleDateString('en-US', { month: 'short' })}</p>
+              <p className="text-yellow-300 text-xl font-black">{new Date(act.date).getDate()}</p>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white font-semibold text-sm">{act.title}</p>
+              {act.location && <p className="text-blue-300 text-xs">📍 {act.location}</p>}
+              {act.description && <p className="text-blue-200 text-xs">{act.description}</p>}
+              {!isUpcoming(act.date) && <span className="text-xs text-blue-400">Past event</span>}
+            </div>
+            <button onClick={() => handleDelete(act.id)}
+              className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded-lg text-xs font-semibold transition-all flex-shrink-0">
+              🗑️
+            </button>
+          </div>
+        ))}
+        {activities.length === 0 && <p className="text-blue-300 text-center py-10">No activities yet.</p>}
       </div>
     </div>
   );
