@@ -563,30 +563,25 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
           const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
           if (!currentVideoTrack) return;
 
-          // Android doesn't reliably return facingMode via getSettings()
-          // So we track facing via a ref toggle instead
           const currentFacing = currentVideoTrack._facingMode || 'user';
           const newFacing = currentFacing === 'user' ? 'environment' : 'user';
 
           try {
-            // Request new camera — exact constraint first, fallback to ideal
             let newStream;
             try {
               newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: newFacing } },
-                audio: false,
+                video: { facingMode: { exact: newFacing } }, audio: false,
               });
             } catch {
               newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: newFacing },
-                audio: false,
+                video: { facingMode: newFacing }, audio: false,
               });
             }
 
             const newVideoTrack = newStream.getVideoTracks()[0];
-            newVideoTrack._facingMode = newFacing; // tag it for next flip
+            newVideoTrack._facingMode = newFacing;
 
-            // Stop old video track
+            // Swap in local stream
             currentVideoTrack.stop();
             localStreamRef.current.removeTrack(currentVideoTrack);
             localStreamRef.current.addTrack(newVideoTrack);
@@ -597,24 +592,23 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
               await localVideoRef.current.play().catch(() => {});
             }
 
-            // Replace video track in WebRTC peer connection
             if (pcRef.current) {
-              const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
-              if (sender) {
-                // If using canvas stream, replace canvas stream track too
-                if (canvasStreamRef.current) {
-                  const canvasSender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
-                  // Canvas will auto-pick up new video since it reads from localVideoRef
-                  // Just restart canvas loop to re-init dimensions
-                  cancelAnimationFrame(animFrameRef.current);
-                  setTimeout(() => {
-                    if (localVideoRef.current && canvasRef.current) {
-                      startCanvasLoop(localVideoRef.current, canvasRef.current);
-                    }
-                  }, 300);
-                } else {
-                  await sender.replaceTrack(newVideoTrack);
+              if (canvasStreamRef.current) {
+                // Canvas mode — restart loop first, then replace canvas track in WebRTC
+                cancelAnimationFrame(animFrameRef.current);
+                await new Promise(r => setTimeout(r, 350));
+                if (localVideoRef.current && canvasRef.current) {
+                  startCanvasLoop(localVideoRef.current, canvasRef.current);
                 }
+                // Wait for canvas to start drawing then replace WebRTC track
+                await new Promise(r => setTimeout(r, 150));
+                const canvasVideoTrack = canvasStreamRef.current.getVideoTracks()[0];
+                const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+                if (sender && canvasVideoTrack) await sender.replaceTrack(canvasVideoTrack);
+              } else {
+                // Direct mode — just replace video track
+                const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+                if (sender) await sender.replaceTrack(newVideoTrack);
               }
             }
           } catch (e) {
