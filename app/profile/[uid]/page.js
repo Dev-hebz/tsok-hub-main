@@ -508,6 +508,5 @@ export default function ProfilePage() {
         <p className="text-center text-blue-400 text-xs mt-8">© 2026 TSOK Hub</p>
       </div>
     </div>
-  </div>
   );
 }
