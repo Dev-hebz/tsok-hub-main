@@ -445,6 +445,7 @@ const PostCard = ({ post, currentUser, currentProfile }) => {
         <div className="w-full bg-black/20">
           <video
             src={post.videoUrl}
+            poster={post.videoUrl.replace('/upload/', '/upload/so_0,q_60,w_800/').replace(/\.[^.]+$/, '.jpg')}
             controls
             playsInline
             preload="metadata"
