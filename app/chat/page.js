@@ -293,8 +293,20 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const initCall = async () => {
     try {
-      // 1. Get raw camera stream
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: true });
+      // 1. Get raw camera + mic stream — fallback for Android devices that reject resolution constraints
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      } catch {
+        // Fallback: minimal constraints — works on Motorola and older Android
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      }
+      // Tag initial facing mode for flip tracking
+      const vt = stream.getVideoTracks()[0];
+      if (vt) vt._facingMode = vt.getSettings()?.facingMode || 'user';
       localStreamRef.current = stream;
 
       // 2. Attach raw stream to hidden video element
@@ -548,19 +560,66 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
         {/* Flip camera */}
         <button onClick={async () => {
           if (!localStreamRef.current) return;
-          const currentTrack = localStreamRef.current.getVideoTracks()[0];
-          const currentFacing = currentTrack?.getSettings()?.facingMode || 'user';
+          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (!currentVideoTrack) return;
+
+          // Android doesn't reliably return facingMode via getSettings()
+          // So we track facing via a ref toggle instead
+          const currentFacing = currentVideoTrack._facingMode || 'user';
           const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+
           try {
-            const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: newFacing, width: 640, height: 480 }, audio: false });
+            // Request new camera — exact constraint first, fallback to ideal
+            let newStream;
+            try {
+              newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { exact: newFacing } },
+                audio: false,
+              });
+            } catch {
+              newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: newFacing },
+                audio: false,
+              });
+            }
+
             const newVideoTrack = newStream.getVideoTracks()[0];
-            // Replace in local stream
-            currentTrack.stop();
-            localStreamRef.current.removeTrack(currentTrack);
+            newVideoTrack._facingMode = newFacing; // tag it for next flip
+
+            // Stop old video track
+            currentVideoTrack.stop();
+            localStreamRef.current.removeTrack(currentVideoTrack);
             localStreamRef.current.addTrack(newVideoTrack);
-            // Update hidden video source
-            if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
-          } catch (e) { console.error('Flip cam error:', e); }
+
+            // Update hidden video element
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = localStreamRef.current;
+              await localVideoRef.current.play().catch(() => {});
+            }
+
+            // Replace video track in WebRTC peer connection
+            if (pcRef.current) {
+              const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+              if (sender) {
+                // If using canvas stream, replace canvas stream track too
+                if (canvasStreamRef.current) {
+                  const canvasSender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+                  // Canvas will auto-pick up new video since it reads from localVideoRef
+                  // Just restart canvas loop to re-init dimensions
+                  cancelAnimationFrame(animFrameRef.current);
+                  setTimeout(() => {
+                    if (localVideoRef.current && canvasRef.current) {
+                      startCanvasLoop(localVideoRef.current, canvasRef.current);
+                    }
+                  }, 300);
+                } else {
+                  await sender.replaceTrack(newVideoTrack);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Flip cam error:', e);
+          }
         }}
           className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
