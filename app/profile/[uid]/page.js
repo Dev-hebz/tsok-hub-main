@@ -493,7 +493,7 @@ export default function ProfilePage() {
                     </div>
                   )}
                   {post.imageUrl && (
-                    <img src={post.imageUrl} alt="Post" className="w-full object-cover max-h-[400px]" />
+                    <img src={post.imageUrl} alt="Post" className="w-full object-contain" />
                   )}
                   <div className="px-4 py-3 border-t border-white/10 flex gap-4 text-sm text-blue-300">
                     <span>👍 {(post.likes || []).length} Likes</span>
@@ -508,5 +508,6 @@ export default function ProfilePage() {
         <p className="text-center text-blue-400 text-xs mt-8">© 2026 TSOK Hub</p>
       </div>
     </div>
+  </div>
   );
 }
