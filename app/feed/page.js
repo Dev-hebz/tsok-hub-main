@@ -12,6 +12,7 @@ import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
 import { useOnlineStatuses, formatLastSeen } from '../../lib/useOnlineStatus';
 import { sendNotification } from '../../lib/sendNotification';
+import { registerFCMToken } from '../../lib/fcm';
 import { uploadToCloudinary, uploadVideoToCloudinary } from '../../lib/cloudinary';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -703,6 +704,36 @@ export default function FeedPage() {
   const [incomingCall, setIncomingCall] = useState(null);
   const fileRef = useRef(null);
   const videoFileRef = useRef(null);
+  const ringAudioRef = useRef(null);
+
+  // Ringtone when incoming call arrives
+  useEffect(() => {
+    if (incomingCall) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      let stopped = false;
+      const playRing = () => {
+        if (stopped) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+        osc.onended = () => { if (!stopped) setTimeout(playRing, 600); };
+      };
+      playRing();
+      ringAudioRef.current = { stop: () => { stopped = true; ctx.close(); } };
+    } else {
+      ringAudioRef.current?.stop();
+      ringAudioRef.current = null;
+    }
+    return () => { ringAudioRef.current?.stop(); ringAudioRef.current = null; };
+  }, [incomingCall]);
 
   // Online statuses — must be after members state
   const memberUids = members.map(m => m.uid || m.id).filter(Boolean);
@@ -730,6 +761,12 @@ export default function FeedPage() {
     });
     return () => unsub();
   }, []);
+
+  // Register FCM token for push notifications
+  useEffect(() => {
+    if (!user) return;
+    registerFCMToken(user.uid).catch(() => {});
+  }, [user]);
 
   // Fetch members — load once when user is ready
   useEffect(() => {

@@ -1059,11 +1059,48 @@ export default function ChatPage() {
   const [activeCall, setActiveCall] = useState(null); // { callDoc, isCaller, otherUser }
   const [incomingCall, setIncomingCall] = useState(null); // { callDoc, callerProfile }
   const [startingCall, setStartingCall] = useState(false);
+  const ringAudioRef = useRef(null); // ringtone audio element
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const unsubMessagesRef = useRef(null);
   const unsubUnreadsRef = useRef([]);
+
+  // Play ringtone when incoming call arrives, stop when answered/declined
+  useEffect(() => {
+    if (incomingCall) {
+      // Create oscillator-based ringtone using Web Audio API (no file needed)
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      let stopped = false;
+      const playRing = () => {
+        if (stopped) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.4);
+        osc.onended = () => {
+          if (!stopped) setTimeout(playRing, 600); // repeat every ~1s
+        };
+      };
+      playRing();
+      ringAudioRef.current = { stop: () => { stopped = true; ctx.close(); } };
+    } else {
+      // Stop ringtone
+      ringAudioRef.current?.stop();
+      ringAudioRef.current = null;
+    }
+    return () => {
+      ringAudioRef.current?.stop();
+      ringAudioRef.current = null;
+    };
+  }, [incomingCall]);
 
   // Online statuses — must be after friends state
   const friendUids = friends.map(f => f.uid).filter(Boolean);
