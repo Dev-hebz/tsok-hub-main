@@ -760,37 +760,58 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ caption: '', description: '', imageUrl: '', videoUrl: '' });
+  const [form, setForm] = useState({ caption: '', description: '', imageUrls: [], videoUrl: '' });
   const fileRef = useRef(null);
   const videoRef = useRef(null);
 
-  const openAdd = () => { setEditingId(null); setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' }); setShowForm(true); };
-  const openEdit = (post) => { setEditingId(post.id); setForm({ caption: post.caption || '', description: post.description || '', imageUrl: post.imageUrl || '', videoUrl: post.videoUrl || '' }); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setEditingId(null); setForm({ caption: '', description: '', imageUrl: '', videoUrl: '' }); };
+  const openAdd = () => { setEditingId(null); setForm({ caption: '', description: '', imageUrls: [], videoUrl: '' }); setShowForm(true); };
+  const openEdit = (post) => {
+    setEditingId(post.id);
+    setForm({
+      caption: post.caption || '',
+      description: post.description || '',
+      imageUrls: post.imageUrls || (post.imageUrl ? [post.imageUrl] : []),
+      videoUrl: post.videoUrl || ''
+    });
+    setShowForm(true);
+  };
+  const closeForm = () => { setShowForm(false); setEditingId(null); setForm({ caption: '', description: '', imageUrls: [], videoUrl: '' }); };
 
-  const uploadFile = async (file, type) => {
+  const uploadImages = async (files) => {
     setUploading(true);
     try {
-      const { uploadToCloudinary, uploadVideoToCloudinary } = await import('../../lib/cloudinary');
-      const url = type === 'video' ? await uploadVideoToCloudinary(file, 'tsok-landing') : await uploadToCloudinary(file, 'tsok-landing');
-      setForm(f => ({ ...f, [type === 'video' ? 'videoUrl' : 'imageUrl']: url }));
+      const { uploadToCloudinary } = await import('../../lib/cloudinary');
+      const urls = await Promise.all(Array.from(files).map(f => uploadToCloudinary(f, 'tsok-landing')));
+      setForm(f => ({ ...f, imageUrls: [...f.imageUrls, ...urls] }));
     } catch { showToast('Upload failed', 'error'); }
     finally { setUploading(false); }
   };
 
+  const uploadVideo = async (file) => {
+    setUploading(true);
+    try {
+      const { uploadVideoToCloudinary } = await import('../../lib/cloudinary');
+      const url = await uploadVideoToCloudinary(file, 'tsok-landing');
+      setForm(f => ({ ...f, videoUrl: url }));
+    } catch { showToast('Upload failed', 'error'); }
+    finally { setUploading(false); }
+  };
+
+  const removeImage = (idx) => setForm(f => ({ ...f, imageUrls: f.imageUrls.filter((_, i) => i !== idx) }));
+
   const handleSave = async () => {
-    if (!form.caption && !form.imageUrl && !form.videoUrl) return showToast('Add caption or media', 'error');
+    if (!form.caption && form.imageUrls.length === 0 && !form.videoUrl) return showToast('Add caption or media', 'error');
     setSaving(true);
     try {
+      const data = { caption: form.caption, description: form.description, imageUrls: form.imageUrls, imageUrl: form.imageUrls[0] || '', videoUrl: form.videoUrl };
       if (editingId) {
-        await updateDoc(doc(db, 'landingPosts', editingId), { caption: form.caption, description: form.description, imageUrl: form.imageUrl, videoUrl: form.videoUrl });
+        await updateDoc(doc(db, 'landingPosts', editingId), data);
         showToast('Post updated!', 'success');
       } else {
-        await addDoc(collection(db, 'landingPosts'), { ...form, createdAt: serverTimestamp() });
+        await addDoc(collection(db, 'landingPosts'), { ...data, createdAt: serverTimestamp() });
         showToast('Post added!', 'success');
       }
-      closeForm();
-      onRefresh();
+      closeForm(); onRefresh();
     } catch { showToast('Error saving post', 'error'); }
     finally { setSaving(false); }
   };
@@ -800,6 +821,10 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
     showToast('Post deleted', 'success');
     onRefresh();
   };
+
+  // Get first image for display
+  const getThumb = (post) => post.imageUrls?.[0] || post.imageUrl || '';
+  const getCount = (post) => (post.imageUrls?.length || (post.imageUrl ? 1 : 0));
 
   return (
     <div>
@@ -821,19 +846,32 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
             <div className="flex gap-3 flex-wrap">
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
-                📷 {form.imageUrl ? '✅ Image Added' : 'Add Image'}
+                📷 Add Photos {form.imageUrls.length > 0 ? `(${form.imageUrls.length})` : ''}
               </button>
               <button type="button" onClick={() => videoRef.current?.click()}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition-all">
                 🎬 {form.videoUrl ? '✅ Video Added' : 'Add Video'}
               </button>
-              {form.imageUrl && <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: '' }))} className="px-3 py-2 bg-red-500/20 text-red-300 rounded-xl text-sm transition-all">✕ Remove Image</button>}
               {form.videoUrl && <button type="button" onClick={() => setForm(f => ({ ...f, videoUrl: '' }))} className="px-3 py-2 bg-red-500/20 text-red-300 rounded-xl text-sm transition-all">✕ Remove Video</button>}
               {uploading && <span className="text-yellow-400 text-sm self-center animate-pulse">⏳ Uploading...</span>}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && uploadFile(e.target.files[0], 'image')} />
-            <input ref={videoRef} type="file" accept="video/*" className="hidden" onChange={e => e.target.files[0] && uploadFile(e.target.files[0], 'video')} />
-            {form.imageUrl && <img src={form.imageUrl} alt="Preview" className="w-full max-h-48 object-contain rounded-xl" />}
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              onChange={e => e.target.files?.length && uploadImages(e.target.files)} />
+            <input ref={videoRef} type="file" accept="video/*" className="hidden"
+              onChange={e => e.target.files[0] && uploadVideo(e.target.files[0])} />
+            {/* Image previews grid */}
+            {form.imageUrls.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {form.imageUrls.map((url, idx) => (
+                  <div key={idx} className="relative group">
+                    <img src={url} alt={`img-${idx}`} className="w-full aspect-square object-contain bg-black/20 rounded-lg" />
+                    <button onClick={() => removeImage(idx)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all">✕</button>
+                    {idx === 0 && <span className="absolute bottom-1 left-1 text-[9px] bg-yellow-400 text-blue-900 px-1 rounded font-bold">Cover</span>}
+                  </div>
+                ))}
+              </div>
+            )}
             {form.videoUrl && <video src={form.videoUrl} controls className="w-full max-h-48 rounded-xl" />}
           </div>
           <div className="flex gap-3 mt-4">
@@ -848,9 +886,12 @@ function LandingPostsTab({ posts, onRefresh, showToast }) {
         {posts.map(post => (
           <div key={post.id} className="bg-white/10 border border-white/20 rounded-2xl overflow-hidden">
             {post.videoUrl
-              ? <video src={post.videoUrl} className="w-full aspect-video object-cover" muted preload="metadata" />
-              : post.imageUrl
-              ? <img src={post.imageUrl} alt={post.caption} className="w-full aspect-video object-cover" />
+              ? <video src={post.videoUrl} className="w-full aspect-video object-contain bg-black/20" muted preload="metadata" />
+              : getThumb(post)
+              ? <div className="relative">
+                  <img src={getThumb(post)} alt={post.caption} className="w-full object-contain bg-black/20" />
+                  {getCount(post) > 1 && <span className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">+{getCount(post) - 1} more</span>}
+                </div>
               : null}
             <div className="p-3">
               {post.caption && <p className="text-white font-semibold text-sm mb-1">{post.caption}</p>}

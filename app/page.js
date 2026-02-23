@@ -118,14 +118,15 @@ export default function Home() {
               <motion.a key={site.id} href={site.url} target="_blank" rel="noopener noreferrer"
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
                 whileHover={{ scale: 1.07, y: -2 }}
-                className={`relative flex flex-col items-center text-center rounded-2xl border border-white/20 shadow-md group p-3 w-[90px] ${site.style || 'bg-white/10'}`}>
+                className={`relative flex flex-col items-center text-center rounded-2xl border border-white/20 shadow-md group p-3 w-[90px] sm:w-[110px] md:w-[130px] ${site.style || 'bg-white/10'}`}>
                 {site.isNew && (
                   <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full z-10 animate-pulse">NEW</span>
                 )}
-                <div className="w-11 h-11 mb-1.5 flex items-center justify-center">
-                  <Image src={site.icon || '/icon-192.png'} alt={site.title} width={44} height={44} className="object-contain drop-shadow" />
+                <div className="w-11 h-11 sm:w-14 sm:h-14 mb-1.5 flex items-center justify-center">
+                  <Image src={site.icon || '/icon-192.png'} alt={site.title} width={56} height={56} className="object-contain drop-shadow" />
                 </div>
-                <h3 className="text-white text-[11px] font-semibold leading-tight line-clamp-2">{site.title}</h3>
+                <h3 className="text-white text-[11px] sm:text-xs font-semibold leading-tight line-clamp-2">{site.title}</h3>
+                <span className="mt-1 px-1.5 py-0.5 bg-yellow-400/20 text-yellow-300 text-[9px] font-semibold rounded-full hidden sm:block">{site.category}</span>
               </motion.a>
             ))}
             {filteredWebsites.length === 0 && (
@@ -136,6 +137,7 @@ export default function Home() {
             )}
           </div>
         )}
+
 
         {/* ── NEWS & UPDATES — Al Jazeera style ── */}
         {posts.length > 0 && (
@@ -148,24 +150,30 @@ export default function Home() {
               <div className="mb-4 cursor-pointer group" onClick={() => setActivePost(posts[0])}>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-0 rounded-2xl overflow-hidden border border-white/20 bg-white/10 backdrop-blur-lg shadow-xl">
                   {/* Media */}
-                  <div className="md:col-span-3 relative">
+                  <div className="md:col-span-3 relative bg-black/20 flex items-center justify-center">
                     {posts[0].videoUrl ? (
-                      <div className="relative aspect-video md:aspect-auto md:h-full bg-black/30">
+                      <div className="relative w-full bg-black/30">
                         <video src={posts[0].videoUrl}
                           poster={posts[0].videoUrl.replace('/upload/', '/upload/so_0,q_60,w_800/').replace(/\.[^.]+$/, '.jpg')}
-                          className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                          className="w-full object-contain" muted playsInline preload="metadata" />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-14 h-14 rounded-full bg-black/60 flex items-center justify-center">
                             <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                           </div>
                         </div>
                       </div>
-                    ) : posts[0].imageUrl ? (
-                      <div className="aspect-video md:aspect-auto md:h-full min-h-[200px] overflow-hidden">
-                        <img src={posts[0].imageUrl} alt={posts[0].caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (posts[0].imageUrls?.[0] || posts[0].imageUrl) ? (
+                      <div className="relative w-full">
+                        <img src={posts[0].imageUrls?.[0] || posts[0].imageUrl} alt={posts[0].caption}
+                          className="w-full object-contain" />
+                        {(posts[0].imageUrls?.length > 1) && (
+                          <span className="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">
+                            📷 {posts[0].imageUrls.length} photos
+                          </span>
+                        )}
                       </div>
                     ) : (
-                      <div className="aspect-video md:h-full bg-gradient-to-br from-blue-700 to-blue-900 min-h-[200px]" />
+                      <div className="w-full h-48 bg-gradient-to-br from-blue-700 to-blue-900" />
                     )}
                   </div>
                   {/* Text */}
@@ -181,36 +189,41 @@ export default function Home() {
             {/* Rest of posts — horizontal list */}
             {posts.length > 1 && (
               <div className="space-y-3">
-                {posts.slice(1).map((post, i) => (
-                  <motion.div key={post.id}
-                    initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
-                    className="flex gap-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl overflow-hidden cursor-pointer group hover:bg-white/15 transition-all"
-                    onClick={() => setActivePost(post)}>
-                    {/* Thumbnail */}
-                    <div className="flex-shrink-0 w-28 h-20 sm:w-36 sm:h-24 overflow-hidden relative">
-                      {post.videoUrl ? (
-                        <>
-                          <video src={post.videoUrl}
-                            poster={post.videoUrl.replace('/upload/', '/upload/so_0,q_60,w_800/').replace(/\.[^.]+$/, '.jpg')}
-                            className="w-full h-full object-cover" muted playsInline preload="metadata" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                {posts.slice(1).map((post, i) => {
+                  const thumb = post.imageUrls?.[0] || post.imageUrl || '';
+                  const photoCount = post.imageUrls?.length || (post.imageUrl ? 1 : 0);
+                  return (
+                    <motion.div key={post.id}
+                      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
+                      className="flex gap-3 bg-white/10 backdrop-blur-lg border border-white/20 rounded-xl overflow-hidden cursor-pointer group hover:bg-white/15 transition-all"
+                      onClick={() => setActivePost(post)}>
+                      <div className="flex-shrink-0 w-28 h-20 sm:w-36 sm:h-24 overflow-hidden relative bg-black/20 flex items-center justify-center">
+                        {post.videoUrl ? (
+                          <>
+                            <video src={post.videoUrl}
+                              poster={post.videoUrl.replace('/upload/', '/upload/so_0,q_60,w_800/').replace(/\.[^.]+$/, '.jpg')}
+                              className="w-full h-full object-contain" muted playsInline preload="metadata" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </div>
+                          </>
+                        ) : thumb ? (
+                          <div className="relative w-full h-full flex items-center justify-center">
+                            <img src={thumb} alt={post.caption} className="w-full h-full object-contain" />
+                            {photoCount > 1 && <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded-full">+{photoCount - 1}</span>}
                           </div>
-                        </>
-                      ) : post.imageUrl ? (
-                        <img src={post.imageUrl} alt={post.caption} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center text-2xl">📣</div>
-                      )}
-                    </div>
-                    {/* Text */}
-                    <div className="flex-1 min-w-0 py-2 pr-3 flex flex-col justify-center">
-                      {post.caption && <h3 className="text-white font-semibold text-sm leading-tight mb-1 line-clamp-2">{post.caption}</h3>}
-                      {post.description && <p className="text-blue-200 text-xs line-clamp-2 leading-relaxed">{post.description}</p>}
-                      {post.createdAt && <p className="text-blue-400 text-xs mt-1">{fmtDate(post.createdAt)}</p>}
-                    </div>
-                  </motion.div>
-                ))}
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-blue-700 to-blue-900 flex items-center justify-center text-2xl">📣</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 py-2 pr-3 flex flex-col justify-center">
+                        {post.caption && <h3 className="text-white font-semibold text-sm leading-tight mb-1 line-clamp-2">{post.caption}</h3>}
+                        {post.description && <p className="text-blue-200 text-xs line-clamp-2 leading-relaxed">{post.description}</p>}
+                        {post.createdAt && <p className="text-blue-400 text-xs mt-1">{fmtDate(post.createdAt)}</p>}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -278,18 +291,23 @@ export default function Home() {
             <motion.div initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
               className="bg-blue-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
               onClick={e => e.stopPropagation()}>
-              {activePost.videoUrl ? (
+              {/* Video */}
+              {activePost.videoUrl && (
                 <video src={activePost.videoUrl} controls playsInline autoPlay className="w-full" />
-              ) : activePost.imageUrl ? (
-                <img src={activePost.imageUrl} alt={activePost.caption} className="w-full object-contain" />
-              ) : null}
+              )}
+              {/* Image Gallery */}
+              {!activePost.videoUrl && (() => {
+                const imgs = activePost.imageUrls?.length ? activePost.imageUrls : activePost.imageUrl ? [activePost.imageUrl] : [];
+                if (!imgs.length) return null;
+                return <GalleryViewer images={imgs} />;
+              })()}
               <div className="p-5">
                 {activePost.caption && <h2 className="text-white font-bold text-xl mb-2">{activePost.caption}</h2>}
                 {activePost.description && <p className="text-blue-200 text-sm leading-relaxed">{activePost.description}</p>}
                 {activePost.createdAt && <p className="text-blue-400 text-xs mt-3">{fmtDate(activePost.createdAt)}</p>}
               </div>
               <button onClick={() => setActivePost(null)}
-                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all text-sm">✕</button>
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all text-sm z-10">✕</button>
             </motion.div>
           </motion.div>
         )}
@@ -299,9 +317,33 @@ export default function Home() {
       <footer className="relative z-10 mt-12 bg-white/5 backdrop-blur-lg border-t border-white/10">
         <div className="container mx-auto px-4 py-6 text-center text-blue-200">
           <p className="mb-1 text-sm">© 2026 TSOK - Teachers-Specialists Organization Kuwait</p>
-          <p className="text-xs">Developed by <span className="text-yellow-400 font-semibold">TSOK 2026 Officers</span></p>
+          <p className="text-xs">Developed by <span className="text-yellow-400 font-semibold">Godmisoft</span></p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function GalleryViewer({ images }) {
+  const [idx, setIdx] = useState(0);
+  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + images.length) % images.length); };
+  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % images.length); };
+  return (
+    <div className="relative w-full bg-black/30 flex items-center justify-center">
+      <img src={images[idx]} alt={`photo-${idx+1}`} className="w-full object-contain max-h-[60vh]" />
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all text-lg z-10">‹</button>
+          <button onClick={next} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-all text-lg z-10">›</button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {images.map((_, i) => (
+              <button key={i} onClick={e => { e.stopPropagation(); setIdx(i); }}
+                className={`w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-yellow-400 w-4' : 'bg-white/40'}`} />
+            ))}
+          </div>
+          <span className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-full">{idx+1}/{images.length}</span>
+        </>
+      )}
     </div>
   );
 }
