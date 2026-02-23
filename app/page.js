@@ -113,24 +113,19 @@ export default function Home() {
             <div className="w-10 h-10 border-4 border-yellow-400 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="flex flex-wrap gap-3">
             {filteredWebsites.map((site, i) => (
               <motion.a key={site.id} href={site.url} target="_blank" rel="noopener noreferrer"
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-                whileHover={{ scale: 1.04, y: -3 }}
-                className={`block relative overflow-hidden rounded-xl border border-white/20 shadow-lg group ${site.style || 'bg-white/10'}`}>
-                <div className="p-4 flex flex-col items-center text-center">
-                  <div className="w-12 h-12 mb-2 flex items-center justify-center">
-                    <Image src={site.icon || '/icon-192.png'} alt={site.title} width={48} height={48} className="object-contain drop-shadow" />
-                  </div>
-                  <h3 className="text-sm font-bold text-white mb-1 leading-tight line-clamp-2">{site.title}</h3>
-                  <p className="text-blue-200 text-xs mb-2 line-clamp-2 leading-tight">{site.description}</p>
-                  <div className="flex flex-wrap gap-1 justify-center">
-                    <span className="px-2 py-0.5 bg-yellow-400 text-blue-900 text-xs font-semibold rounded-full">{site.category}</span>
-                    {site.isNew && <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-semibold rounded-full animate-pulse">NEW</span>}
-                  </div>
+                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
+                whileHover={{ scale: 1.07, y: -2 }}
+                className={`relative flex flex-col items-center text-center rounded-2xl border border-white/20 shadow-md group p-3 w-[90px] ${site.style || 'bg-white/10'}`}>
+                {site.isNew && (
+                  <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full z-10 animate-pulse">NEW</span>
+                )}
+                <div className="w-11 h-11 mb-1.5 flex items-center justify-center">
+                  <Image src={site.icon || '/icon-192.png'} alt={site.title} width={44} height={44} className="object-contain drop-shadow" />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                <h3 className="text-white text-[11px] font-semibold leading-tight line-clamp-2">{site.title}</h3>
               </motion.a>
             ))}
             {filteredWebsites.length === 0 && (
