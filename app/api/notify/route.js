@@ -25,6 +25,18 @@ export async function POST(request) {
       return Response.json({ message: 'No FCM tokens for user' }, { status: 200 });
     }
 
+    // Skip message notifications if recipient is actively online (they'll see it in app)
+    // Always send call notifications regardless of online status
+    if (type !== 'call') {
+      const onlineStatus = userDoc.data().onlineStatus;
+      const lastSeen = onlineStatus?.lastSeen?.toDate?.() || null;
+      const isOnline = onlineStatus?.isOnline === true;
+      const recentlyActive = lastSeen && (Date.now() - lastSeen.getTime()) < 30000; // 30 seconds
+      if (isOnline || recentlyActive) {
+        return Response.json({ message: 'User is online, skipping notification' }, { status: 200 });
+      }
+    }
+
     // Build notification payload
     let notification, data;
     if (type === 'message') {

@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   collection, addDoc, query, orderBy, onSnapshot, where,
   doc, getDoc, getDocs, serverTimestamp, updateDoc, deleteDoc,
-  setDoc, arrayUnion, arrayRemove
+  setDoc, arrayUnion, arrayRemove, limit
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -1130,31 +1130,38 @@ export default function ChatPage() {
     return () => unsub();
   }, [user]);
 
-  // DM unread counts
+  // DM unread counts — query only unread=false messages (no composite index needed)
   useEffect(() => {
     if (!user || !friends.length) return;
     unsubUnreadsRef.current.forEach(u => u());
     unsubUnreadsRef.current = friends.map(friend => {
-      const chatId = getChatId(user.uid, friend.uid);
-      const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'desc'));
+      const chatId = getChatId(user.uid, friend.uid || friend.id);
+      const q = query(
+        collection(db, 'chats', chatId, 'messages'),
+        where('read', '==', false),
+        limit(99)
+      );
       return onSnapshot(q, snap => {
-        const count = snap.docs.filter(d => d.data().senderId !== user.uid && !d.data().read).length;
-        setUnreadCounts(prev => ({ ...prev, [friend.uid]: count }));
+        const count = snap.docs.filter(d => d.data().senderId !== user.uid).length;
+        setUnreadCounts(prev => ({ ...prev, [friend.uid || friend.id]: count }));
       });
     });
     return () => unsubUnreadsRef.current.forEach(u => u());
   }, [user, friends]);
 
-  // Group unread counts
+  // Group unread counts — only listen to recent messages not full history
   useEffect(() => {
     if (!user || !groups.length) return;
     const unsubs = groups.map(group => {
-      const q = query(collection(db, 'groups', group.id, 'messages'), orderBy('createdAt', 'desc'));
+      const q = query(
+        collection(db, 'groups', group.id, 'messages'),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      );
       return onSnapshot(q, snap => {
         const count = snap.docs.filter(d => {
           const data = d.data();
-          const readBy = data.readBy || [];
-          return data.senderId !== user.uid && !readBy.includes(user.uid);
+          return data.senderId !== user.uid && !(data.readBy || []).includes(user.uid);
         }).length;
         setGroupUnreads(prev => ({ ...prev, [group.id]: count }));
       });
@@ -1169,7 +1176,7 @@ export default function ChatPage() {
     setLoadingMessages(true);
     setDmMessages([]);
     const chatId = getChatId(user.uid, selectedFriend);
-    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'), limit(100));
     unsubMessagesRef.current = onSnapshot(q, async snap => {
       setDmMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoadingMessages(false);
@@ -1188,7 +1195,7 @@ export default function ChatPage() {
     if (unsubMessagesRef.current) unsubMessagesRef.current();
     setLoadingMessages(true);
     setGroupMessages([]);
-    const q = query(collection(db, 'groups', selectedGroup.id, 'messages'), orderBy('createdAt', 'asc'));
+    const q = query(collection(db, 'groups', selectedGroup.id, 'messages'), orderBy('createdAt', 'asc'), limit(100));
     unsubMessagesRef.current = onSnapshot(q, async snap => {
       const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setGroupMessages(msgs);

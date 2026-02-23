@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   collection, addDoc, query, orderBy, onSnapshot,
   doc, updateDoc, arrayUnion, arrayRemove, deleteDoc,
-  getDoc, getDocs, serverTimestamp, where
+  getDoc, getDocs, serverTimestamp, where, limit
 } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../lib/AuthContext';
@@ -755,7 +755,7 @@ export default function FeedPage() {
 
   // Real-time posts
   useEffect(() => {
-    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(30));
     const unsub = onSnapshot(q, snap => {
       setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
