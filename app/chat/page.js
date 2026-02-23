@@ -198,6 +198,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const [flipping, setFlipping] = useState(false);
   const [callStatus, setCallStatus] = useState(isCaller ? 'calling' : 'connecting');
   const [callDuration, setCallDuration] = useState(0);
   const [activeFilter, setActiveFilter] = useState('normal');
@@ -409,6 +410,56 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     if (track) { track.enabled = !track.enabled; setCamOn(track.enabled); }
   };
 
+  const handleFlipCamera = async () => {
+    if (!localStreamRef.current || flipping) return;
+    const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+    if (!currentVideoTrack) return;
+    setFlipping(true);
+    const currentFacing = currentVideoTrack._facingMode || 'user';
+    const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+    try {
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: newFacing } }, audio: false,
+        });
+      } catch {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: newFacing }, audio: false,
+        });
+      }
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      newVideoTrack._facingMode = newFacing;
+      currentVideoTrack.stop();
+      localStreamRef.current.removeTrack(currentVideoTrack);
+      localStreamRef.current.addTrack(newVideoTrack);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+        await localVideoRef.current.play().catch(() => {});
+      }
+      if (pcRef.current) {
+        if (canvasStreamRef.current) {
+          cancelAnimationFrame(animFrameRef.current);
+          await new Promise(r => setTimeout(r, 350));
+          if (localVideoRef.current && canvasRef.current) {
+            startCanvasLoop(localVideoRef.current, canvasRef.current);
+          }
+          await new Promise(r => setTimeout(r, 150));
+          const canvasVideoTrack = canvasStreamRef.current.getVideoTracks()[0];
+          const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+          if (sender && canvasVideoTrack) await sender.replaceTrack(canvasVideoTrack);
+        } else {
+          const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) await sender.replaceTrack(newVideoTrack);
+        }
+      }
+    } catch (e) {
+      console.error('Flip cam error:', e);
+    } finally {
+      setFlipping(false);
+    }
+  };
+
   const handleEnd = () => { cleanup(); onClose(); };
 
   const currentFilter = VIDEO_FILTERS.find(f => f.id === activeFilter);
@@ -478,7 +529,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
         {/* Filter Panel */}
         {showFilters && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gray-900/97 backdrop-blur-lg border-t border-white/10 pb-2">
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-900/97 backdrop-blur-lg border-t border-white/10 pb-2 z-50">
             <div className="flex items-center justify-between px-4 pt-3 pb-2">
               <p className="text-white text-sm font-semibold">✨ Filters & Beauty</p>
               <button onClick={() => setShowFilters(false)} className="text-yellow-400 text-xs font-semibold">Done</button>
@@ -510,7 +561,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-3 py-5 bg-gray-900 flex-shrink-0 px-4">
+      <div className="relative z-40 flex items-center justify-center gap-3 py-5 bg-gray-900 flex-shrink-0 px-2 overflow-x-auto">
         {/* Mic */}
         <button onClick={toggleMic}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${micOn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-red-500 text-white'}`}>
@@ -558,67 +609,21 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
         </button>
 
         {/* Flip camera */}
-        <button onClick={async () => {
-          if (!localStreamRef.current) return;
-          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (!currentVideoTrack) return;
-
-          const currentFacing = currentVideoTrack._facingMode || 'user';
-          const newFacing = currentFacing === 'user' ? 'environment' : 'user';
-
-          try {
-            let newStream;
-            try {
-              newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: newFacing } }, audio: false,
-              });
-            } catch {
-              newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: newFacing }, audio: false,
-              });
-            }
-
-            const newVideoTrack = newStream.getVideoTracks()[0];
-            newVideoTrack._facingMode = newFacing;
-
-            // Swap in local stream
-            currentVideoTrack.stop();
-            localStreamRef.current.removeTrack(currentVideoTrack);
-            localStreamRef.current.addTrack(newVideoTrack);
-
-            // Update hidden video element
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = localStreamRef.current;
-              await localVideoRef.current.play().catch(() => {});
-            }
-
-            if (pcRef.current) {
-              if (canvasStreamRef.current) {
-                // Canvas mode — restart loop first, then replace canvas track in WebRTC
-                cancelAnimationFrame(animFrameRef.current);
-                await new Promise(r => setTimeout(r, 350));
-                if (localVideoRef.current && canvasRef.current) {
-                  startCanvasLoop(localVideoRef.current, canvasRef.current);
-                }
-                // Wait for canvas to start drawing then replace WebRTC track
-                await new Promise(r => setTimeout(r, 150));
-                const canvasVideoTrack = canvasStreamRef.current.getVideoTracks()[0];
-                const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
-                if (sender && canvasVideoTrack) await sender.replaceTrack(canvasVideoTrack);
-              } else {
-                // Direct mode — just replace video track
-                const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) await sender.replaceTrack(newVideoTrack);
-              }
-            }
-          } catch (e) {
-            console.error('Flip cam error:', e);
-          }
-        }}
-          className="w-12 h-12 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-all">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-          </svg>
+        <button
+          type="button"
+          onClick={handleFlipCamera}
+          disabled={flipping}
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${flipping ? 'bg-yellow-400/40 text-yellow-300' : 'bg-white/20 hover:bg-white/30 text-white'}`}
+        >
+          {flipping ? (
+            <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          )}
         </button>
       </div>
     </div>
