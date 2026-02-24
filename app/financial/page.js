@@ -155,14 +155,14 @@ export default function FinancialPage() {
       };
       if (editingId) {
         await updateDoc(doc(db, 'financialTransactions', editingId), data);
-        await logActivity('EDIT', `Edited ${formType} — ${form.description} — ₱${fmt(form.amount)}`);
+        await logActivity('EDIT', `Edited ${formType} — ${form.description} — KD ${fmt(form.amount)}`);
         showToast('Transaction updated!', 'success');
       } else {
         data.createdAt = serverTimestamp();
         data.createdBy = user?.email || 'unknown';
         data.createdByName = userProfile?.fullName || user?.email || 'Unknown';
         await addDoc(collection(db, 'financialTransactions'), data);
-        await logActivity('ADD', `Added ${formType} — ${form.description} — ₱${fmt(form.amount)}`);
+        await logActivity('ADD', `Added ${formType} — ${form.description} — KD ${fmt(form.amount)}`);
         showToast(`${formType === 'IN' ? 'Income' : 'Expense'} added!`, 'success');
       }
       closeForm();
@@ -174,7 +174,7 @@ export default function FinancialPage() {
     if (!confirm(`Delete "${tx.description}"?`)) return;
     try {
       await deleteDoc(doc(db, 'financialTransactions', tx.id));
-      await logActivity('DELETE', `Deleted ${tx.type} — ${tx.description} — ₱${fmt(tx.amount)}`);
+      await logActivity('DELETE', `Deleted ${tx.type} — ${tx.description} — KD ${fmt(tx.amount)}`);
       showToast('Transaction deleted', 'success');
     } catch { showToast('Error deleting', 'error'); }
   };
@@ -286,19 +286,19 @@ export default function FinancialPage() {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
             className="bg-green-500/20 border border-green-400/30 rounded-2xl p-4 text-center">
             <p className="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">Total IN</p>
-            <p className="text-green-300 font-black text-xl leading-none">₱{fmt(totalIn)}</p>
+            <p className="text-green-300 font-black text-xl leading-none">KD {fmt(totalIn)}</p>
             <p className="text-green-400/70 text-xs mt-1">{transactions.filter(t=>t.type==='IN').length} entries</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
             className="bg-red-500/20 border border-red-400/30 rounded-2xl p-4 text-center">
             <p className="text-red-300 text-xs font-semibold uppercase tracking-wide mb-1">Total OUT</p>
-            <p className="text-red-300 font-black text-xl leading-none">₱{fmt(totalOut)}</p>
+            <p className="text-red-300 font-black text-xl leading-none">KD {fmt(totalOut)}</p>
             <p className="text-red-400/70 text-xs mt-1">{transactions.filter(t=>t.type==='OUT').length} entries</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className={`${balance >= 0 ? 'bg-yellow-400/20 border-yellow-400/30' : 'bg-red-600/20 border-red-500/30'} border rounded-2xl p-4 text-center`}>
             <p className={`${balance >= 0 ? 'text-yellow-300' : 'text-red-300'} text-xs font-semibold uppercase tracking-wide mb-1`}>Balance</p>
-            <p className={`${balance >= 0 ? 'text-yellow-300' : 'text-red-300'} font-black text-xl leading-none`}>₱{fmt(balance)}</p>
+            <p className={`${balance >= 0 ? 'text-yellow-300' : 'text-red-300'} font-black text-xl leading-none`}>KD {fmt(balance)}</p>
             <p className={`${balance >= 0 ? 'text-yellow-400/70' : 'text-red-400/70'} text-xs mt-1`}>{balance >= 0 ? '✅ Positive' : '⚠️ Negative'}</p>
           </motion.div>
         </div>
@@ -340,7 +340,7 @@ export default function FinancialPage() {
                     <div key={cat}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-blue-200">{cat}</span>
-                        <span className="text-green-300 font-semibold">₱{fmt(total)} <span className="text-blue-400 text-xs">({pct}%)</span></span>
+                        <span className="text-green-300 font-semibold">KD {fmt(total)} <span className="text-blue-400 text-xs">({pct}%)</span></span>
                       </div>
                       <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -363,7 +363,7 @@ export default function FinancialPage() {
                     <div key={cat}>
                       <div className="flex justify-between text-sm mb-1">
                         <span className="text-blue-200">{cat}</span>
-                        <span className="text-red-300 font-semibold">₱{fmt(total)} <span className="text-blue-400 text-xs">({pct}%)</span></span>
+                        <span className="text-red-300 font-semibold">KD {fmt(total)} <span className="text-blue-400 text-xs">({pct}%)</span></span>
                       </div>
                       <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -390,7 +390,7 @@ export default function FinancialPage() {
                       </div>
                     </div>
                     <span className={`font-bold text-sm ${tx.type === 'IN' ? 'text-green-300' : 'text-red-300'}`}>
-                      {tx.type === 'IN' ? '+' : '-'}₱{fmt(tx.amount)}
+                      {tx.type === 'IN' ? '+' : '-'}KD {fmt(tx.amount)}
                     </span>
                   </div>
                 ))}
@@ -441,7 +441,7 @@ export default function FinancialPage() {
                     </div>
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <span className={`font-black text-lg ${tx.type === 'IN' ? 'text-green-300' : 'text-red-300'}`}>
-                        {tx.type === 'IN' ? '+' : '-'}₱{fmt(tx.amount)}
+                        {tx.type === 'IN' ? '+' : '-'}KD {fmt(tx.amount)}
                       </span>
                       <div className="flex gap-1.5">
                         <button onClick={() => openEdit(tx)}
@@ -515,7 +515,7 @@ export default function FinancialPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-blue-300 text-xs font-semibold mb-1 block">AMOUNT (₱) *</label>
+                    <label className="text-blue-300 text-xs font-semibold mb-1 block">AMOUNT (KD) *</label>
                     <input type="number" value={form.amount} onChange={e => setForm(f => ({...f, amount: e.target.value}))}
                       placeholder="0.00" min="0" step="0.01"
                       className="w-full px-4 py-2.5 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm" />
