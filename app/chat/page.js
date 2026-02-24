@@ -241,11 +241,17 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
         }
         if (dimsSet) {
           const filterId = activeFilterRef.current;
-          // Step 1: Draw mirrored video to canvas
+          // Only mirror front camera — back camera should NOT be mirrored
+          const currentTrack = localStreamRef.current?.getVideoTracks()[0];
+          const facing = currentTrack?.getSettings?.()?.facingMode || currentTrack?._facingMode || 'user';
+          const shouldMirror = facing !== 'environment';
+
           ctx.filter = 'none';
           ctx.save();
-          ctx.translate(canvas.width, 0);
-          ctx.scale(-1, 1);
+          if (shouldMirror) {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+          }
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
           ctx.restore();
           // Step 2: Apply filter
@@ -415,41 +421,87 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
     if (!currentVideoTrack) return;
     setFlipping(true);
-    const currentFacing = currentVideoTrack._facingMode || 'user';
+
+    // Detect current facing mode reliably — check getSettings() first, fallback to custom tag
+    const settings = currentVideoTrack.getSettings?.() || {};
+    const currentFacing = settings.facingMode || currentVideoTrack._facingMode || 'user';
     const newFacing = currentFacing === 'user' ? 'environment' : 'user';
+
     try {
+      // Stop canvas loop before switching
+      cancelAnimationFrame(animFrameRef.current);
+
       let newStream;
+      // Try exact first (most Android devices support this)
       try {
         newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { exact: newFacing } }, audio: false,
+          video: { facingMode: { exact: newFacing } },
+          audio: false,
         });
       } catch {
-        newStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: newFacing }, audio: false,
-        });
+        // Fallback: non-exact (some Android models)
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: newFacing },
+            audio: false,
+          });
+        } catch {
+          // Last resort: plain video true (very old Android)
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
       }
+
       const newVideoTrack = newStream.getVideoTracks()[0];
-      newVideoTrack._facingMode = newFacing;
+      // Tag facing mode using getSettings — more reliable than our guess
+      const newSettings = newVideoTrack.getSettings?.() || {};
+      newVideoTrack._facingMode = newSettings.facingMode || newFacing;
+
+      // Swap track in localStream
       currentVideoTrack.stop();
       localStreamRef.current.removeTrack(currentVideoTrack);
       localStreamRef.current.addTrack(newVideoTrack);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-        await localVideoRef.current.play().catch(() => {});
+
+      // Update hidden video element and WAIT for it to be ready
+      const videoEl = localVideoRef.current;
+      if (videoEl) {
+        videoEl.srcObject = null; // force reset on Android
+        await new Promise(r => setTimeout(r, 80)); // brief pause for Android camera switch
+        videoEl.srcObject = localStreamRef.current;
+
+        // Wait for video metadata before drawing to canvas
+        await new Promise((resolve) => {
+          if (videoEl.readyState >= 2) { resolve(); return; }
+          const onReady = () => { videoEl.removeEventListener('loadedmetadata', onReady); resolve(); };
+          videoEl.addEventListener('loadedmetadata', onReady);
+          setTimeout(resolve, 2000); // safety timeout
+        });
+
+        await videoEl.play().catch(() => {});
+        await new Promise(r => setTimeout(r, 150)); // let first frames render
       }
+
+      // Reset canvas dimensions so startCanvasLoop picks up new camera resolution
+      if (canvasRef.current) {
+        canvasRef.current.width = 0;
+        canvasRef.current.height = 0;
+      }
+
+      // Restart canvas loop with new video
+      if (canvasRef.current && videoEl) {
+        startCanvasLoop(videoEl, canvasRef.current);
+        await new Promise(r => setTimeout(r, 400)); // wait for canvas to get frames
+      }
+
+      // Replace WebRTC track
       if (pcRef.current) {
+        const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
         if (canvasStreamRef.current) {
-          cancelAnimationFrame(animFrameRef.current);
-          await new Promise(r => setTimeout(r, 350));
-          if (localVideoRef.current && canvasRef.current) {
-            startCanvasLoop(localVideoRef.current, canvasRef.current);
-          }
-          await new Promise(r => setTimeout(r, 150));
           const canvasVideoTrack = canvasStreamRef.current.getVideoTracks()[0];
-          const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
           if (sender && canvasVideoTrack) await sender.replaceTrack(canvasVideoTrack);
         } else {
-          const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
           if (sender) await sender.replaceTrack(newVideoTrack);
         }
       }

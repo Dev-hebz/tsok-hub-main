@@ -317,7 +317,7 @@ export default function Home() {
       <footer className="relative z-10 mt-12 bg-white/5 backdrop-blur-lg border-t border-white/10">
         <div className="container mx-auto px-4 py-6 text-center text-blue-200">
           <p className="mb-1 text-sm">© 2026 TSOK - Teachers-Specialists Organization Kuwait</p>
-          <p className="text-xs">Developed by <span className="text-yellow-400 font-semibold">TSOK 2026 Officers</span></p>
+          <p className="text-xs">Developed by <span className="text-yellow-400 font-semibold">Godmisoft</span></p>
         </div>
       </footer>
     </div>
