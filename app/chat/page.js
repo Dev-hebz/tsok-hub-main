@@ -422,22 +422,26 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     setCamOn(newEnabled);
 
     if (newEnabled) {
-      // Camera turning ON — restart canvas loop so preview & WebRTC get frames again
+      // Camera ON — restart canvas loop with live video
+      cancelAnimationFrame(animFrameRef.current);
       if (localVideoRef.current && canvasRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
         startCanvasLoop(localVideoRef.current, canvasRef.current);
       }
-      // Also restore preview srcObject if it was cleared
-      if (previewRef.current && canvasStreamRef.current && !previewRef.current.srcObject) {
-        previewRef.current.srcObject = canvasStreamRef.current;
-      }
     } else {
-      // Camera turning OFF — stop canvas loop, clear canvas to black
+      // Camera OFF — stop live loop, run a black-frame loop so remote side sees black
       cancelAnimationFrame(animFrameRef.current);
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvasRef.current.width || 640, canvasRef.current.height || 480);
+      const canvas = canvasRef.current;
+      if (canvas && canvas.width > 0) {
+        const ctx = canvas.getContext('2d');
+        const drawBlack = () => {
+          // Only keep drawing black while cam is off
+          if (!localStreamRef.current?.getVideoTracks()[0]?.enabled) {
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            animFrameRef.current = requestAnimationFrame(drawBlack);
+          }
+        };
+        drawBlack();
       }
     }
   };
@@ -448,14 +452,14 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     if (!currentVideoTrack) return;
     setFlipping(true);
 
-    // Use our stable ref — more reliable than getSettings() on Android
     const currentFacing = facingModeRef.current;
     const newFacing = currentFacing === 'user' ? 'environment' : 'user';
 
     try {
-      // Stop canvas loop before switching cameras
+      // Stop canvas loop before switching
       cancelAnimationFrame(animFrameRef.current);
 
+      // Get new camera stream
       let newStream;
       try {
         newStream = await navigator.mediaDevices.getUserMedia({
@@ -469,69 +473,63 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
             audio: false,
           });
         } catch {
-          // Last resort — plain video, no constraints
           newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
       }
 
       const newVideoTrack = newStream.getVideoTracks()[0];
 
-      // Update our stable facing ref immediately
-      const detected = newVideoTrack.getSettings?.()?.facingMode;
-      facingModeRef.current = detected || newFacing;
-      newVideoTrack._facingMode = facingModeRef.current;
+      // Detect actual facing from settings, fallback to requested
+      const detectedFacing = newVideoTrack.getSettings?.()?.facingMode || newFacing;
+      facingModeRef.current = detectedFacing;
+      newVideoTrack._facingMode = detectedFacing;
 
-      // Swap track in localStream
+      // Swap in localStream
       currentVideoTrack.stop();
       localStreamRef.current.removeTrack(currentVideoTrack);
       localStreamRef.current.addTrack(newVideoTrack);
 
-      // Hard-reset video element — critical on Android Chrome
+      // Reset hidden video — Android needs srcObject = null first
       const videoEl = localVideoRef.current;
       if (videoEl) {
+        videoEl.pause();
         videoEl.srcObject = null;
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 150)); // Android needs this gap
+
         videoEl.srcObject = localStreamRef.current;
 
-        // Wait for video to actually have frames before starting canvas
+        // Wait for actual frames — use both events + fallback timeout
         await new Promise((resolve) => {
-          if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) { resolve(); return; }
-          const onReady = () => {
-            videoEl.removeEventListener('loadedmetadata', onReady);
-            videoEl.removeEventListener('canplay', onReady);
-            resolve();
-          };
-          videoEl.addEventListener('loadedmetadata', onReady);
-          videoEl.addEventListener('canplay', onReady);
-          setTimeout(resolve, 3000); // safety timeout
+          let done = false;
+          const finish = () => { if (done) return; done = true; resolve(); };
+          videoEl.addEventListener('canplay', finish, { once: true });
+          videoEl.addEventListener('loadeddata', finish, { once: true });
+          setTimeout(finish, 3000);
         });
 
         await videoEl.play().catch(() => {});
-        await new Promise(r => setTimeout(r, 200)); // let frames render
+        await new Promise(r => setTimeout(r, 300));
       }
 
-      // Reset canvas so it picks up new camera resolution
+      // Reset canvas size so new camera resolution is picked up
       if (canvasRef.current) {
         canvasRef.current.width = 0;
         canvasRef.current.height = 0;
       }
 
-      // Restart canvas loop
+      // Restart canvas loop — this is all that's needed for canvas path
+      // The canvasStream track is the same object, WebRTC auto-gets new frames
       if (canvasRef.current && videoEl) {
         startCanvasLoop(videoEl, canvasRef.current);
-        await new Promise(r => setTimeout(r, 500)); // wait for canvas frames
+        await new Promise(r => setTimeout(r, 500));
       }
 
-      // Replace WebRTC sender track
-      if (pcRef.current) {
+      // Only replaceTrack on iOS (non-canvas path) since canvasStream is unchanged
+      if (pcRef.current && !canvasStreamRef.current) {
         const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
-        if (canvasStreamRef.current) {
-          const canvasVideoTrack = canvasStreamRef.current.getVideoTracks()[0];
-          if (sender && canvasVideoTrack) await sender.replaceTrack(canvasVideoTrack);
-        } else {
-          if (sender) await sender.replaceTrack(newVideoTrack);
-        }
+        if (sender) await sender.replaceTrack(newVideoTrack);
       }
+
     } catch (e) {
       console.error('Flip cam error:', e);
     } finally {
