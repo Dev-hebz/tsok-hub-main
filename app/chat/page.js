@@ -195,6 +195,7 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
   const canvasStreamRef = useRef(null); // filtered canvas stream sent via WebRTC
   const animFrameRef = useRef(null);    // requestAnimationFrame id
   const activeFilterRef = useRef('normal'); // ref so RAF loop gets latest value
+  const facingModeRef = useRef('user'); // tracks current facing mode reliably
 
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
@@ -241,10 +242,8 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
         }
         if (dimsSet) {
           const filterId = activeFilterRef.current;
-          // Only mirror front camera — back camera should NOT be mirrored
-          const currentTrack = localStreamRef.current?.getVideoTracks()[0];
-          const facing = currentTrack?.getSettings?.()?.facingMode || currentTrack?._facingMode || 'user';
-          const shouldMirror = facing !== 'environment';
+          // Only mirror front camera — use stable ref, not per-frame track lookup
+          const shouldMirror = facingModeRef.current !== 'environment';
 
           ctx.filter = 'none';
           ctx.save();
@@ -313,7 +312,11 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
       }
       // Tag initial facing mode for flip tracking
       const vt = stream.getVideoTracks()[0];
-      if (vt) vt._facingMode = vt.getSettings()?.facingMode || 'user';
+      if (vt) {
+        const detected = vt.getSettings?.()?.facingMode || 'user';
+        vt._facingMode = detected;
+        facingModeRef.current = detected;
+      }
       localStreamRef.current = stream;
 
       // 2. Attach raw stream to hidden video element
@@ -413,7 +416,30 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
   const toggleCam = () => {
     const track = localStreamRef.current?.getVideoTracks()[0];
-    if (track) { track.enabled = !track.enabled; setCamOn(track.enabled); }
+    if (!track) return;
+    const newEnabled = !track.enabled;
+    track.enabled = newEnabled;
+    setCamOn(newEnabled);
+
+    if (newEnabled) {
+      // Camera turning ON — restart canvas loop so preview & WebRTC get frames again
+      if (localVideoRef.current && canvasRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        startCanvasLoop(localVideoRef.current, canvasRef.current);
+      }
+      // Also restore preview srcObject if it was cleared
+      if (previewRef.current && canvasStreamRef.current && !previewRef.current.srcObject) {
+        previewRef.current.srcObject = canvasStreamRef.current;
+      }
+    } else {
+      // Camera turning OFF — stop canvas loop, clear canvas to black
+      cancelAnimationFrame(animFrameRef.current);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvasRef.current.width || 640, canvasRef.current.height || 480);
+      }
+    }
   };
 
   const handleFlipCamera = async () => {
@@ -422,80 +448,81 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     if (!currentVideoTrack) return;
     setFlipping(true);
 
-    // Detect current facing mode reliably — check getSettings() first, fallback to custom tag
-    const settings = currentVideoTrack.getSettings?.() || {};
-    const currentFacing = settings.facingMode || currentVideoTrack._facingMode || 'user';
+    // Use our stable ref — more reliable than getSettings() on Android
+    const currentFacing = facingModeRef.current;
     const newFacing = currentFacing === 'user' ? 'environment' : 'user';
 
     try {
-      // Stop canvas loop before switching
+      // Stop canvas loop before switching cameras
       cancelAnimationFrame(animFrameRef.current);
 
       let newStream;
-      // Try exact first (most Android devices support this)
       try {
         newStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { exact: newFacing } },
           audio: false,
         });
       } catch {
-        // Fallback: non-exact (some Android models)
         try {
           newStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: newFacing },
             audio: false,
           });
         } catch {
-          // Last resort: plain video true (very old Android)
-          newStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false,
-          });
+          // Last resort — plain video, no constraints
+          newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
       }
 
       const newVideoTrack = newStream.getVideoTracks()[0];
-      // Tag facing mode using getSettings — more reliable than our guess
-      const newSettings = newVideoTrack.getSettings?.() || {};
-      newVideoTrack._facingMode = newSettings.facingMode || newFacing;
+
+      // Update our stable facing ref immediately
+      const detected = newVideoTrack.getSettings?.()?.facingMode;
+      facingModeRef.current = detected || newFacing;
+      newVideoTrack._facingMode = facingModeRef.current;
 
       // Swap track in localStream
       currentVideoTrack.stop();
       localStreamRef.current.removeTrack(currentVideoTrack);
       localStreamRef.current.addTrack(newVideoTrack);
 
-      // Update hidden video element and WAIT for it to be ready
+      // Hard-reset video element — critical on Android Chrome
       const videoEl = localVideoRef.current;
       if (videoEl) {
-        videoEl.srcObject = null; // force reset on Android
-        await new Promise(r => setTimeout(r, 80)); // brief pause for Android camera switch
+        videoEl.srcObject = null;
+        await new Promise(r => setTimeout(r, 100));
         videoEl.srcObject = localStreamRef.current;
 
-        // Wait for video metadata before drawing to canvas
+        // Wait for video to actually have frames before starting canvas
         await new Promise((resolve) => {
-          if (videoEl.readyState >= 2) { resolve(); return; }
-          const onReady = () => { videoEl.removeEventListener('loadedmetadata', onReady); resolve(); };
+          if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) { resolve(); return; }
+          const onReady = () => {
+            videoEl.removeEventListener('loadedmetadata', onReady);
+            videoEl.removeEventListener('canplay', onReady);
+            resolve();
+          };
           videoEl.addEventListener('loadedmetadata', onReady);
-          setTimeout(resolve, 2000); // safety timeout
+          videoEl.addEventListener('canplay', onReady);
+          setTimeout(resolve, 3000); // safety timeout
         });
 
         await videoEl.play().catch(() => {});
-        await new Promise(r => setTimeout(r, 150)); // let first frames render
+        await new Promise(r => setTimeout(r, 200)); // let frames render
       }
 
-      // Reset canvas dimensions so startCanvasLoop picks up new camera resolution
+      // Reset canvas so it picks up new camera resolution
       if (canvasRef.current) {
         canvasRef.current.width = 0;
         canvasRef.current.height = 0;
       }
 
-      // Restart canvas loop with new video
+      // Restart canvas loop
       if (canvasRef.current && videoEl) {
         startCanvasLoop(videoEl, canvasRef.current);
-        await new Promise(r => setTimeout(r, 400)); // wait for canvas to get frames
+        await new Promise(r => setTimeout(r, 500)); // wait for canvas frames
       }
 
-      // Replace WebRTC track
+      // Replace WebRTC sender track
       if (pcRef.current) {
         const sender = pcRef.current.getSenders().find(s => s.track?.kind === 'video');
         if (canvasStreamRef.current) {
@@ -563,11 +590,11 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
 
         {/* Local PIP — shows filtered canvas stream preview */}
         <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-36 sm:h-48 rounded-2xl overflow-hidden border-2 border-yellow-400 shadow-2xl bg-gray-800">
-          {camOn ? (
-            <video ref={previewRef} autoPlay playsInline muted
-              className="w-full h-full object-cover"
-              style={{ filter: { beauty:'brightness(1.08) contrast(0.92) saturate(1.1)', smooth:'brightness(1.12) contrast(0.88)', warm:'sepia(0.2) saturate(1.3) brightness(1.05)', cool:'hue-rotate(15deg) saturate(0.9)', vivid:'contrast(1.15) saturate(1.5)', soft:'brightness(0.95) contrast(0.85)', bw:'grayscale(1)', vintage:'sepia(0.5) contrast(0.9)', bright:'brightness(1.25)' }[activeFilter] || 'none' }} />
-          ) : (
+          {/* Always keep video mounted — unmounting loses srcObject on cam re-enable */}
+          <video ref={previewRef} autoPlay playsInline muted
+            className={`w-full h-full object-cover ${camOn ? '' : 'hidden'}`}
+            style={{ filter: { beauty:'brightness(1.08) contrast(0.92) saturate(1.1)', smooth:'brightness(1.12) contrast(0.88)', warm:'sepia(0.2) saturate(1.3) brightness(1.05)', cool:'hue-rotate(15deg) saturate(0.9)', vivid:'contrast(1.15) saturate(1.5)', soft:'brightness(0.95) contrast(0.85)', bw:'grayscale(1)', vintage:'sepia(0.5) contrast(0.9)', bright:'brightness(1.25)' }[activeFilter] || 'none' }} />
+          {!camOn && (
             <div className="w-full h-full flex items-center justify-center bg-gray-800">
               <Avatar user={currentUser} size={10} />
             </div>
