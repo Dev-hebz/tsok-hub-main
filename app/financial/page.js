@@ -184,6 +184,210 @@ export default function FinancialPage() {
   const totalOut = transactions.filter(t => t.type === 'OUT').reduce((s, t) => s + Number(t.amount || 0), 0);
   const balance  = totalIn - totalOut;
 
+  // ── Export PDF ────────────────────────────────────────────────
+  const exportPDF = async () => {
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+      // Header
+      doc.setFillColor(13, 27, 62);
+      doc.rect(0, 0, pageW, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TEACHERS-SPECIALISTS ORGANIZATION KUWAIT', pageW / 2, 11, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text('FINANCIAL STATEMENT', pageW / 2, 19, { align: 'center' });
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`As of ${dateStr}`, pageW / 2, 25, { align: 'center' });
+
+      // Summary box
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('FINANCIAL SUMMARY', 14, 40);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.line(14, 42, pageW - 14, 42);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(0, 120, 0);
+      doc.text(`Total Income:`, 14, 50);
+      doc.text(`KD ${fmt(totalIn)}`, pageW - 14, 50, { align: 'right' });
+      doc.setTextColor(180, 0, 0);
+      doc.text(`Total Expenses:`, 14, 57);
+      doc.text(`KD ${fmt(totalOut)}`, pageW - 14, 57, { align: 'right' });
+      doc.setDrawColor(100, 100, 100);
+      doc.line(14, 60, pageW - 14, 60);
+      const balanceColor = balance >= 0 ? [0, 100, 0] : [180, 0, 0];
+      doc.setTextColor(...balanceColor);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(`Net Balance:`, 14, 67);
+      doc.text(`KD ${fmt(balance)}`, pageW - 14, 67, { align: 'right' });
+
+      // Transactions table
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TRANSACTION DETAILS', 14, 77);
+
+      const rows = transactions.map(tx => [
+        tx.date || '',
+        tx.type === 'IN' ? 'INCOME' : 'EXPENSE',
+        tx.description || '',
+        tx.category || '',
+        tx.notes || '',
+        tx.createdByName || tx.createdBy || '',
+        `KD ${fmt(tx.amount)}`,
+      ]);
+
+      autoTable(doc, {
+        startY: 80,
+        head: [['Date', 'Type', 'Description', 'Category', 'Notes', 'Added By', 'Amount']],
+        body: rows,
+        headStyles: { fillColor: [13, 27, 62], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 18 },
+          2: { cellWidth: 42 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 28 },
+          5: { cellWidth: 28 },
+          6: { cellWidth: 20, halign: 'right' },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 1) {
+            if (data.cell.raw === 'INCOME') data.cell.styles.textColor = [0, 120, 0];
+            else data.cell.styles.textColor = [180, 0, 0];
+          }
+        },
+        alternateRowStyles: { fillColor: [240, 244, 255] },
+        margin: { left: 14, right: 14 },
+      });
+
+      // Signature section
+      const finalY = doc.lastAutoTable.finalY + 20;
+      const sigY = finalY + 30;
+      const col1 = 14, col2 = pageW / 2 - 20, col3 = pageW - 14;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(80, 80, 80);
+
+      // Line 1 - Treasurer
+      doc.line(col1, sigY, col1 + 55, sigY);
+      doc.text('Prepared by:', col1, sigY + 5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TSOK Treasurer', col1, sigY + 10);
+
+      // Line 2 - Auditor
+      const midX = pageW / 2 - 27.5;
+      doc.setFont('helvetica', 'normal');
+      doc.line(midX, sigY, midX + 55, sigY);
+      doc.text('Audited by:', midX, sigY + 5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TSOK Auditor', midX, sigY + 10);
+
+      // Line 3 - President
+      doc.setFont('helvetica', 'normal');
+      doc.line(col3 - 55, sigY, col3, sigY);
+      doc.text('Approved by:', col3 - 55, sigY + 5);
+      doc.setFont('helvetica', 'bold');
+      doc.text('TSOK President', col3 - 55, sigY + 10);
+
+      // Footer
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Generated on ${now.toLocaleString()} · TSOK Financial Management System`, pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' });
+
+      doc.save(`TSOK_Financial_Statement_${now.getFullYear()}.pdf`);
+      showToast('PDF downloaded!', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('PDF generation failed. Try again.', 'error');
+    }
+  };
+
+  // ── Export Excel ──────────────────────────────────────────────
+  const exportExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
+      const now = new Date();
+
+      // Summary sheet
+      const summaryData = [
+        ['TSOK Financial Summary'],
+        [`Generated: ${now.toLocaleDateString()}`],
+        [],
+        ['', 'Amount (KD)'],
+        ['Total Income', totalIn],
+        ['Total Expenses', totalOut],
+        ['Net Balance', balance],
+        [],
+        ['Income by Category'],
+        ...CATEGORIES_IN.map(cat => {
+          const t = transactions.filter(tx => tx.type === 'IN' && tx.category === cat).reduce((s,tx) => s+Number(tx.amount||0),0);
+          return t ? [cat, t] : null;
+        }).filter(Boolean),
+        [],
+        ['Expenses by Category'],
+        ...CATEGORIES_OUT.map(cat => {
+          const t = transactions.filter(tx => tx.type === 'OUT' && tx.category === cat).reduce((s,tx) => s+Number(tx.amount||0),0);
+          return t ? [cat, t] : null;
+        }).filter(Boolean),
+      ];
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+      wsSummary['!cols'] = [{ wch: 30 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      // Transactions sheet
+      const txHeaders = ['Date', 'Type', 'Description', 'Category', 'Amount (KD)', 'Notes', 'Added By', 'Added Date'];
+      const txRows = transactions.map(tx => [
+        tx.date || '',
+        tx.type === 'IN' ? 'Income' : 'Expense',
+        tx.description || '',
+        tx.category || '',
+        Number(tx.amount || 0),
+        tx.notes || '',
+        tx.createdByName || tx.createdBy || '',
+        tx.createdAt ? new Date(tx.createdAt.seconds * 1000).toLocaleDateString() : '',
+      ]);
+      const wsTx = XLSX.utils.aoa_to_sheet([txHeaders, ...txRows]);
+      wsTx['!cols'] = [{ wch: 14 }, { wch: 12 }, { wch: 35 }, { wch: 22 }, { wch: 15 }, { wch: 30 }, { wch: 25 }, { wch: 16 }];
+      XLSX.utils.book_append_sheet(wb, wsTx, 'Transactions');
+
+      // Activity Log sheet
+      const logHeaders = ['Action', 'Details', 'User', 'Email', 'Date & Time'];
+      const logRows = activityLogs.map(log => [
+        log.action || '',
+        log.details || '',
+        log.userName || '',
+        log.userEmail || '',
+        log.createdAt ? new Date(log.createdAt.seconds * 1000).toLocaleString() : '',
+      ]);
+      const wsLog = XLSX.utils.aoa_to_sheet([logHeaders, ...logRows]);
+      wsLog['!cols'] = [{ wch: 12 }, { wch: 50 }, { wch: 25 }, { wch: 30 }, { wch: 22 }];
+      XLSX.utils.book_append_sheet(wb, wsLog, 'Activity Log');
+
+      XLSX.writeFile(wb, `TSOK_Financial_${now.getFullYear()}.xlsx`);
+      showToast('Excel downloaded!', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Excel export failed.', 'error');
+    }
+  };
+
   const filtered = transactions.filter(tx => {
     if (filterType !== 'ALL' && tx.type !== filterType) return false;
     if (filterCategory !== 'ALL' && tx.category !== filterCategory) return false;
@@ -304,7 +508,7 @@ export default function FinancialPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 mb-6">
+        <div className="flex gap-3 mb-3">
           <button onClick={() => openAdd('IN')}
             className="flex-1 py-3 bg-green-500 hover:bg-green-400 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg">
             <span className="text-xl">➕</span> Add Income
@@ -312,6 +516,18 @@ export default function FinancialPage() {
           <button onClick={() => openAdd('OUT')}
             className="flex-1 py-3 bg-red-500 hover:bg-red-400 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg">
             <span className="text-xl">➖</span> Add Expense
+          </button>
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex gap-3 mb-6">
+          <button onClick={exportPDF}
+            className="flex-1 py-2.5 bg-white/10 hover:bg-red-500/30 border border-white/20 hover:border-red-400/50 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm">
+            📄 Download PDF
+          </button>
+          <button onClick={exportExcel}
+            className="flex-1 py-2.5 bg-white/10 hover:bg-green-500/30 border border-white/20 hover:border-green-400/50 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 text-sm">
+            📊 Export Excel
           </button>
         </div>
 

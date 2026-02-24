@@ -365,6 +365,42 @@ export default function Admin() {
       m.email?.toLowerCase().includes(memberSearch.toLowerCase())
   );
 
+  // ── Export Members Excel ──────────────────────────────────────
+  const exportMembersExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const now = new Date();
+      const headers = [
+        'Full Name', 'Email', 'School / Position', 'Contact Number',
+        'Membership Type', 'Role', 'Can Post', 'Is Admin',
+        'Joined Date',
+      ];
+      const rows = members.map(m => [
+        m.fullName || '',
+        m.email || '',
+        m.school || m.position || '',
+        m.contactNumber || m.phone || '',
+        m.membershipType || m.membership || '',
+        m.role || 'member',
+        m.canPost ? 'Yes' : 'No',
+        m.isAdmin ? 'Yes' : 'No',
+        m.createdAt ? new Date(m.createdAt.seconds * 1000).toLocaleDateString() : '',
+      ]);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      ws['!cols'] = [
+        { wch: 28 }, { wch: 30 }, { wch: 28 }, { wch: 18 },
+        { wch: 18 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 16 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+      XLSX.writeFile(wb, `TSOK_Members_${now.getFullYear()}.xlsx`);
+      showToast('Members Excel downloaded!', 'success');
+    } catch (e) {
+      console.error(e);
+      showToast('Export failed. Try again.', 'error');
+    }
+  };
+
   // ── Main Admin UI ─────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-950">
@@ -649,13 +685,19 @@ export default function Admin() {
           <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20">
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <h2 className="text-xl font-bold text-white">Member Management ({members.length})</h2>
-              <input
-                type="text"
-                placeholder="Search members..."
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm"
-              />
+              <div className="flex gap-2 flex-wrap">
+                <button onClick={exportMembersExcel}
+                  className="px-4 py-2 bg-green-500/20 hover:bg-green-500/40 border border-green-400/40 text-green-300 font-bold rounded-xl text-sm transition-all flex items-center gap-1.5">
+                  📊 Export Excel
+                </button>
+                <input
+                  type="text"
+                  placeholder="Search members..."
+                  value={memberSearch}
+                  onChange={(e) => setMemberSearch(e.target.value)}
+                  className="px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-sm"
+                />
+              </div>
             </div>
 
             <div className="space-y-3">
