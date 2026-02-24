@@ -1059,8 +1059,30 @@ export default function FeedPage() {
         </div>
       </nav>
 
+      {/* Mobile TSOK Apps Quick Bar — visible on mobile only */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-blue-900/95 backdrop-blur border-t border-white/20 px-4 py-2 flex items-center justify-around shadow-2xl">
+        <Link href="/" className="flex flex-col items-center gap-0.5 text-blue-200 hover:text-yellow-300 transition-colors">
+          <span className="text-xl">🏠</span>
+          <span className="text-[10px] font-semibold">Portal</span>
+        </Link>
+        <Link href="/feed" className="flex flex-col items-center gap-0.5 text-yellow-300">
+          <span className="text-xl">👥</span>
+          <span className="text-[10px] font-semibold">Community</span>
+        </Link>
+        <Link href={`/profile/${user?.uid}`} className="flex flex-col items-center gap-0.5 text-blue-200 hover:text-yellow-300 transition-colors">
+          <span className="text-xl">👤</span>
+          <span className="text-[10px] font-semibold">Profile</span>
+        </Link>
+        {userProfile?.isAdmin && (
+          <Link href="/admin" className="flex flex-col items-center gap-0.5 text-blue-200 hover:text-yellow-300 transition-colors">
+            <span className="text-xl">⚙️</span>
+            <span className="text-[10px] font-semibold">Admin</span>
+          </Link>
+        )}
+      </div>
+
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10 pb-20 lg:pb-6">
 
         {/* Left Sidebar */}
         <div className="hidden lg:block lg:col-span-3">
