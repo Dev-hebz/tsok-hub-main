@@ -232,54 +232,48 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
   // Canvas render loop — Safari-compatible pixel filter
   const startCanvasLoop = (videoEl, canvas) => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let dimsSet = false;
     const draw = () => {
-      if (videoEl.readyState >= 2) {
-        if (!dimsSet && videoEl.videoWidth > 0) {
+      if (videoEl.readyState >= 2 && videoEl.videoWidth > 0) {
+        // Always sync canvas size — handles flip where camera resolution may change
+        if (canvas.width !== videoEl.videoWidth || canvas.height !== videoEl.videoHeight) {
           canvas.width = videoEl.videoWidth;
           canvas.height = videoEl.videoHeight;
-          dimsSet = true;
         }
-        if (dimsSet) {
-          const filterId = activeFilterRef.current;
-          // Only mirror front camera — use stable ref, not per-frame track lookup
-          const shouldMirror = facingModeRef.current !== 'environment';
+        const filterId = activeFilterRef.current;
+        const shouldMirror = facingModeRef.current !== 'environment';
 
-          ctx.filter = 'none';
-          ctx.save();
-          if (shouldMirror) {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-          ctx.restore();
-          // Step 2: Apply filter
-          if (filterId !== 'normal') {
-            if (ctxFilterSupported()) {
-              // Chrome/Firefox — fast CSS filter via ctx
-              const cssMap = {
-                beauty:  'brightness(1.08) contrast(0.92) saturate(1.1)',
-                smooth:  'brightness(1.12) contrast(0.88) saturate(0.95)',
-                warm:    'brightness(1.05) saturate(1.3) sepia(0.15) hue-rotate(-10deg)',
-                cool:    'brightness(1.02) saturate(0.9) hue-rotate(15deg)',
-                vivid:   'brightness(1.05) contrast(1.15) saturate(1.5)',
-                soft:    'brightness(0.95) contrast(0.85) saturate(0.9)',
-                bw:      'grayscale(1) contrast(1.1)',
-                vintage: 'sepia(0.5) contrast(0.9) brightness(0.95) saturate(0.8)',
-                bright:  'brightness(1.25) contrast(1.05) saturate(1.1)',
-              };
-              const tmpCanvas = document.createElement('canvas');
-              tmpCanvas.width = canvas.width;
-              tmpCanvas.height = canvas.height;
-              const tmpCtx = tmpCanvas.getContext('2d');
-              tmpCtx.filter = cssMap[filterId] || 'none';
-              tmpCtx.drawImage(canvas, 0, 0);
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(tmpCanvas, 0, 0);
-            } else {
-              // Safari — pixel-level manipulation
-              applyPixelFilter(ctx, filterId, canvas.width, canvas.height);
-            }
+        ctx.filter = 'none';
+        ctx.save();
+        if (shouldMirror) {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        if (filterId !== 'normal') {
+          if (ctxFilterSupported()) {
+            const cssMap = {
+              beauty:  'brightness(1.08) contrast(0.92) saturate(1.1)',
+              smooth:  'brightness(1.12) contrast(0.88) saturate(0.95)',
+              warm:    'brightness(1.05) saturate(1.3) sepia(0.15) hue-rotate(-10deg)',
+              cool:    'brightness(1.02) saturate(0.9) hue-rotate(15deg)',
+              vivid:   'brightness(1.05) contrast(1.15) saturate(1.5)',
+              soft:    'brightness(0.95) contrast(0.85) saturate(0.9)',
+              bw:      'grayscale(1) contrast(1.1)',
+              vintage: 'sepia(0.5) contrast(0.9) brightness(0.95) saturate(0.8)',
+              bright:  'brightness(1.25) contrast(1.05) saturate(1.1)',
+            };
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = canvas.width;
+            tmpCanvas.height = canvas.height;
+            const tmpCtx = tmpCanvas.getContext('2d');
+            tmpCtx.filter = cssMap[filterId] || 'none';
+            tmpCtx.drawImage(canvas, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(tmpCanvas, 0, 0);
+          } else {
+            applyPixelFilter(ctx, filterId, canvas.width, canvas.height);
           }
         }
       }
@@ -512,9 +506,14 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
       }
 
       // Reset canvas size so new camera resolution is picked up
+      // NOTE: Do NOT set to 0 — resetting canvas kills captureStream track on Android Chrome
+      // Instead, just let startCanvasLoop update dimensions from new videoWidth/videoHeight
       if (canvasRef.current) {
-        canvasRef.current.width = 0;
-        canvasRef.current.height = 0;
+        // Just clear the current frame — dimensions will update in the loop
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx && canvasRef.current.width > 0) {
+          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
       }
 
       // Restart canvas loop — this is all that's needed for canvas path
@@ -545,9 +544,9 @@ const VideoCallModal = ({ callDoc, isCaller, currentUser, otherUser, onClose }) 
     <div className="fixed inset-0 z-[300] bg-gray-950 flex flex-col">
       {/* Hidden raw video + canvas (off-screen processing) */}
       <video ref={localVideoRef} autoPlay playsInline muted
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+        style={{ position: 'absolute', left: '-9999px', top: 0, width: '320px', height: '240px', opacity: 0, pointerEvents: 'none' }} />
       <canvas ref={canvasRef}
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />
+        style={{ position: 'absolute', left: '-9999px', top: 0, width: '320px', height: '240px', opacity: 0, pointerEvents: 'none' }} />
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-blue-900/60 backdrop-blur flex-shrink-0">
