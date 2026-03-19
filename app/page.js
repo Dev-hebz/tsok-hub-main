@@ -340,8 +340,8 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <motion.div whileHover={{ rotate: 360, scale: 1.1 }} transition={{ duration: 0.6 }} className="relative">
-                <div className="w-[50px] h-[50px] rounded-full flex items-center justify-center" style={{ background: '#ffffff', boxShadow: '0 0 20px rgba(240,180,41,0.3)', padding: 4 }}>
-                  <Image src="/tsok-logo.png" alt="TSOK" width={42} height={42} className="drop-shadow-lg" />
+                <div className="w-[50px] h-[50px] rounded-full flex items-center justify-center" style={{ background: '#ffffff', boxShadow: '0 0 10px rgba(240,180,41,0.2)', padding: 1 }}>
+                  <Image src="/tsok-logo.png" alt="TSOK" width={48} height={48} className="drop-shadow-lg" />
                 </div>
               </motion.div>
               <div>
@@ -493,8 +493,8 @@ export default function Home() {
                       style={{ background: '#dc2626', color: '#fff' }}>NEW</span>
                   )}
                   <div className="w-12 h-12 sm:w-14 sm:h-14 mb-2 flex items-center justify-center rounded-full overflow-hidden"
-                    style={{ background: '#ffffff', boxShadow: '0 0 12px rgba(240,180,41,0.2)', padding: 3 }}>
-                    <Image src={site.icon || '/icon-192.png'} alt={site.title} width={52} height={52} className="object-contain drop-shadow" />
+                    style={{ background: '#ffffff', boxShadow: '0 0 8px rgba(240,180,41,0.15)', padding: 1 }}>
+                    <Image src={site.icon || '/icon-192.png'} alt={site.title} width={56} height={56} className="object-contain drop-shadow" />
                   </div>
                   <h3 className="text-[11px] sm:text-xs font-semibold leading-tight line-clamp-2" style={{color:'#ffffff'}}>{site.title}</h3>
                   <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full hidden sm:block"
@@ -747,7 +747,7 @@ export default function Home() {
       <footer className="relative z-10 mt-6" style={{ borderTop: '1px solid rgba(240,180,41,0.1)', background: 'rgba(5,13,31,0.85)', backdropFilter: 'blur(20px)' }}>
         <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center" style={{ background: '#ffffff', boxShadow: '0 0 12px rgba(240,180,41,0.25)', padding: 3 }}><Image src="/tsok-logo.png" alt="TSOK" width={32} height={32} /></div>
+            <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center" style={{ background: '#ffffff', boxShadow: '0 0 8px rgba(240,180,41,0.2)', padding: 1 }}><Image src="/tsok-logo.png" alt="TSOK" width={36} height={36} /></div>
             <div>
               <p className="font-black text-sm" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</p>
               <p className="text-[10px]" style={{ color: 'rgba(240,180,41,0.4)' }}>Teachers-Specialists Organization Kuwait</p>
