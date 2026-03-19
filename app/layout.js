@@ -1,8 +1,9 @@
-import { Inter } from 'next/font/google';
+import { DM_Sans, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '../lib/AuthContext';
 
-const inter = Inter({ subsets: ['latin'] });
+const dmSans = DM_Sans({ subsets: ['latin'], weight: ['300','400','500','600','700'], variable: '--font-dm-sans' });
+const playfair = Playfair_Display({ subsets: ['latin'], weight: ['700','900'], variable: '--font-playfair' });
 
 export const metadata = {
   title: 'TSOK Portal - Teachers-Specialists Organization Kuwait',
@@ -37,7 +38,7 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
-      <body className={inter.className}>
+      <body className={`${dmSans.variable} ${playfair.variable} ${dmSans.className}`}>
         <AuthProvider>
           {children}
         </AuthProvider>
