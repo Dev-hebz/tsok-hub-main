@@ -755,7 +755,7 @@ export default function Home() {
           </div>
           <p className="text-xs text-center" style={{ color: 'rgba(60,45,15,0.5)' }}>
             © 2026 TSOK · Developed by{' '}
-            <span className="font-bold" style={{ color: '#92600a' }}>Godmisoft</span>
+            <span className="font-bold" style={{ color: '#92600a' }}>TSOK Officer 2026</span>
           </p>
         </div>
       </footer>
