@@ -43,7 +43,7 @@ function Particles() {
       {PARTICLES.map(p => (
         <motion.div key={p.id}
           className="absolute rounded-full"
-          style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size, background: 'rgba(180,130,20,0.2)' }}
+          style={{ left: `${p.x}%`, top: `${p.y}%`, width: p.size, height: p.size, background: 'rgba(10,24,80,0.12)' }}
           animate={{ y: [-18, 18, -18], opacity: [0.1, 0.6, 0.1] }}
           transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -97,10 +97,10 @@ function SectionHeading({ icon, title, subtitle }) {
       <div className="flex items-center gap-3 mb-1">
         <span className="text-2xl">{icon}</span>
         <h2 style={{ fontFamily: '\'Playfair Display\', serif' }}
-          className="text-2xl md:text-3xl font-black" style={{color:'#1a1a2e'}}>{title}</h2>
+          className="text-2xl md:text-3xl font-black" style={{color:'#0a1850'}}>{title}</h2>
       </div>
-      {subtitle && <p className="text-sm ml-10" style={{ color: 'rgba(120,85,10,0.65)' }}>{subtitle}</p>}
-      <div className="mt-3 ml-10 h-px" style={{ background: 'linear-gradient(90deg, rgba(180,130,20,0.5), rgba(180,130,20,0.15), transparent)' }} />
+      {subtitle && <p className="text-sm ml-10" style={{ color: 'rgba(30,58,138,0.6)' }}>{subtitle}</p>}
+      <div className="mt-3 ml-10 h-px" style={{ background: 'linear-gradient(90deg, rgba(10,24,80,0.4), rgba(10,24,80,0.1), transparent)' }} />
     </motion.div>
   );
 }
@@ -156,7 +156,7 @@ function CurrencyConverter() {
     <section className="relative z-10 container mx-auto px-4 pb-14">
       <SectionHeading icon="💱" title="Currency Converter" subtitle="Live exchange rates — PHP, KWD, USD" />
 
-      <div className="rounded-3xl overflow-hidden shadow-xl" style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(180,140,30,0.2)' }}>
+      <div className="rounded-3xl overflow-hidden shadow-xl" style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.1)' }}>
         {/* Rate cards row */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-0">
           {PAIRS.map((pair, i) => {
@@ -180,18 +180,18 @@ function CurrencyConverter() {
                     {sym(pair.to)}{rate}
                   </p>
                 )}
-                <p className="text-[9px] mt-0.5" style={{ color: 'rgba(60,45,15,0.5)' }}>per 1 {sym(pair.from)}</p>
+                <p className="text-[9px] mt-0.5" style={{ color: 'rgba(30,58,138,0.45)' }}>per 1 {sym(pair.from)}</p>
               </motion.button>
             );
           })}
         </div>
 
         {/* Active converter */}
-        <div className="p-5 md:p-6" style={{ borderTop: '1px solid rgba(180,140,30,0.15)', background: 'rgba(255,252,240,0.7)' }}>
+        <div className="p-5 md:p-6" style={{ borderTop: '1px solid rgba(180,140,30,0.15)', background: '#f8faff' }}>
           <div className="flex flex-col sm:flex-row items-center gap-4">
             {/* Input */}
             <div className="flex-1 w-full">
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: 'rgba(120,85,10,0.8)' }}>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: 'rgba(10,24,80,0.65)' }}>
                 Amount ({activePair.from})
               </label>
               <div className="relative">
@@ -217,7 +217,7 @@ function CurrencyConverter() {
 
             {/* Result */}
             <div className="flex-1 w-full">
-              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: 'rgba(120,85,10,0.8)' }}>
+              <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block" style={{ color: 'rgba(10,24,80,0.65)' }}>
                 Result ({activePair.to})
               </label>
               <div className="w-full px-4 py-3.5 rounded-2xl text-xl font-black"
@@ -238,7 +238,7 @@ function CurrencyConverter() {
               {PAIRS.filter(p => p.from === activePair.from && p.to !== activePair.to).map(p => (
                 <div key={p.label} className="flex items-center justify-between px-3 py-2 rounded-xl text-xs"
                   style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(180,140,30,0.12)' }}>
-                  <span className="font-semibold" style={{ color: 'rgba(60,45,15,0.65)' }}>{p.flag} {p.to}</span>
+                  <span className="font-semibold" style={{ color: 'rgba(30,58,138,0.6)' }}>{p.flag} {p.to}</span>
                   <span className="font-black" style={{ color: p.color }}>{sym(p.to)}{convert(amount, p.from, p.to)}</span>
                 </div>
               ))}
@@ -246,7 +246,7 @@ function CurrencyConverter() {
           )}
 
           {/* Footer */}
-          <div className="mt-3 flex items-center justify-between text-xs" style={{ color: 'rgba(120,85,10,0.55)' }}>
+          <div className="mt-3 flex items-center justify-between text-xs" style={{ color: 'rgba(10,24,80,0.45)' }}>
             <span>{error ? '⚠️ Approximate rates' : `🔄 Live rates · Updated ${lastUpdated}`}</span>
             <span>Source: exchangerate-api.com</span>
           </div>
@@ -300,21 +300,21 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen relative" style={{ background: '#f5f0e8' }}>
+    <div className="min-h-screen relative" style={{ background: '#ffffff' }}>
       <Particles />
 
-      {/* Grid mesh background */}
+      {/* Diagonal navy stripes */}
       <div className="fixed inset-0 pointer-events-none z-0"
-        style={{ opacity: 0.025, backgroundImage: 'linear-gradient(rgba(240,180,41,1) 1px, transparent 1px), linear-gradient(90deg, rgba(240,180,41,1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+        style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 28px, rgba(10,24,80,0.04) 28px, rgba(10,24,80,0.04) 30px)' }} />
 
-      {/* Ambient glow orbs */}
+      {/* Subtle corner navy accent blobs */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <motion.div animate={{ x: [0, 60, 0], y: [0, -40, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(180,130,20,0.12) 0%, transparent 70%)' }} />
-        <motion.div animate={{ x: [0, -50, 0], y: [0, 50, 0] }} transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut', delay: 3 }}
-          className="absolute -bottom-40 -right-40 w-[600px] h-[600px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(30,64,174,0.1) 0%, transparent 70%)' }} />
+        <div className="absolute -top-24 -left-24 w-72 h-72 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(10,24,80,0.07) 0%, transparent 70%)' }} />
+        <div className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(10,24,80,0.06) 0%, transparent 70%)' }} />
+        <div className="absolute top-1/3 right-0 w-64 h-64 rounded-full"
+          style={{ background: 'radial-gradient(circle, rgba(180,130,20,0.06) 0%, transparent 70%)' }} />
       </div>
 
       {/* ── TICKER ── */}
@@ -335,18 +335,16 @@ export default function Home() {
       {/* ── HEADER ── */}
       <motion.header initial={{ y: -80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7, type: 'spring', stiffness: 90 }}
         className="sticky top-0 z-20 transition-all duration-500"
-        style={{ background: scrolled ? 'rgba(245,240,232,0.98)' : 'rgba(245,240,232,0.88)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(180,140,30,0.2)', boxShadow: scrolled ? '0 4px 40px rgba(0,0,0,0.12)' : 'none' }}>
+        style={{ background: scrolled ? 'rgba(255,255,255,0.98)' : 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(10,24,80,0.1)', boxShadow: scrolled ? '0 4px 30px rgba(10,24,80,0.1)' : 'none' }}>
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <motion.div whileHover={{ rotate: 360, scale: 1.1 }} transition={{ duration: 0.6 }} className="relative">
-                <div className="w-[50px] h-[50px] rounded-full flex items-center justify-center" style={{ background: '#1a1a2e', boxShadow: '0 0 18px rgba(180,130,20,0.3)', padding: 5 }}>
-                  <Image src="/tsok-logo.png" alt="TSOK" width={40} height={40} className="drop-shadow-xl" />
-                </div>
+                <Image src="/tsok-logo.png" alt="TSOK" width={46} height={46} className="drop-shadow-lg" style={{ filter: 'drop-shadow(0 2px 8px rgba(10,24,80,0.25))' }} />
               </motion.div>
               <div>
-                <h1 className="font-black text-xl leading-none" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</h1>
-                <p className="text-[10px] tracking-widest uppercase" style={{ color: 'rgba(140,100,10,0.7)' }}>Teachers-Specialists Org. Kuwait</p>
+                <h1 className="font-black text-xl leading-none" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #0a1850, #1e3a8a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</h1>
+                <p className="text-[10px] tracking-widest uppercase" style={{ color: 'rgba(30,58,138,0.6)' }}>Teachers-Specialists Org. Kuwait</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -359,15 +357,15 @@ export default function Home() {
                   </Link>
                   <button onClick={logout} className="px-3 py-2 text-xs rounded-xl transition-all"
                     style={{ color: 'rgba(120,85,10,0.75)', border: '1px solid rgba(255,255,255,0.1)' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(240,180,41,0.3)'; e.currentTarget.style.color = '#fcd34d'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(240,180,41,0.6)'; }}>
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.3)'; e.currentTarget.style.color = '#0a1850'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.15)'; e.currentTarget.style.color = 'rgba(30,58,138,0.8)'; }}>
                     Logout
                   </button>
                 </>
               ) : (
                 <>
                   <Link href="/login" className="px-4 py-2 text-xs font-semibold rounded-xl transition-all"
-                    style={{ color: '#92600a', border: '1px solid rgba(180,130,20,0.35)', background: 'rgba(240,180,41,0.08)' }}
+                    style={{ color: '#92600a', border: '1px solid rgba(180,130,20,0.35)', background: '#f0f4ff' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(180,130,20,0.5)'; e.currentTarget.style.background = 'rgba(240,180,41,0.15)'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(180,130,20,0.35)'; e.currentTarget.style.background = 'rgba(240,180,41,0.08)'; }}>
                     Login
@@ -388,9 +386,9 @@ export default function Home() {
             <input type="text" placeholder="Search TSOK websites & apps..." value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none transition-all"
-              style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(180,140,30,0.2)', color: '#2a1f0a', '::placeholder': { color: 'rgba(240,180,41,0.4)' } }}
-              onFocus={e => e.target.style.borderColor = 'rgba(180,130,20,0.5)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(180,140,30,0.2)'} />
+              style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.1)', color: '#0a1850', '::placeholder': { color: 'rgba(240,180,41,0.4)' } }}
+              onFocus={e => e.target.style.borderColor = 'rgba(10,24,80,0.4)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(10,24,80,0.12)'} />
           </div>
         </div>
       </motion.header>
@@ -400,22 +398,22 @@ export default function Home() {
         <div className="container mx-auto">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.7 }}>
             <span className="inline-block px-5 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase mb-7"
-              style={{ background: 'rgba(180,130,20,0.1)', border: '1px solid rgba(180,130,20,0.3)', color: '#92600a' }}>
+              style={{ background: 'rgba(10,24,80,0.06)', border: '1px solid rgba(10,24,80,0.2)', color: '#1e3a8a' }}>
               ✦ Your Gateway to TSOK Resources ✦
             </span>
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.9 }}
             className="text-4xl md:text-6xl lg:text-7xl font-black mb-6 leading-tight"
             style={{ fontFamily: '\'Playfair Display\', serif' }}>
-            <span style={{color:'#1a1a2e'}}>Empowering</span>{' '}
-            <span className="animate-shimmer">Filipino Teachers</span>
+            <span style={{color:'#0a1850'}}>Empowering</span>{' '}
+            <span style={{background:"linear-gradient(135deg,#0a1850,#1e3a8a,#3b82f6)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Filipino Teachers</span>
             <br />
-            <span style={{color:'#1a1a2e'}}>Across </span>
-            <span style={{ background: 'linear-gradient(135deg, #f59e0b, #fcd34d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Kuwait</span>
+            <span style={{color:'#0a1850'}}>Across </span>
+            <span style={{ background: 'linear-gradient(135deg, #0a1850, #1e3a8a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Kuwait</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.7 }}
             className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
-            style={{ color: 'rgba(50,40,20,0.72)' }}>
+            style={{ color: 'rgba(30,58,138,0.65)' }}>
             Access all TSOK tools, resources, and community features in one powerful hub.
             Built for Filipino educators making a difference in Kuwait.
           </motion.p>
@@ -427,10 +425,10 @@ export default function Home() {
               { label: 'Years of Service', value: 10, suffix: '+' }].map(({ label, value, suffix }) => (
               <div key={label} className="text-center">
                 <p className="text-3xl md:text-4xl font-black"
-                  style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #0a1850, #1e3a8a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                   <Counter to={value} suffix={suffix} />
                 </p>
-                <p className="text-xs mt-1 uppercase tracking-wider" style={{ color: 'rgba(120,85,10,0.7)' }}>{label}</p>
+                <p className="text-xs mt-1 uppercase tracking-wider" style={{ color: 'rgba(30,58,138,0.6)' }}>{label}</p>
               </div>
             ))}
           </motion.div>
@@ -451,7 +449,7 @@ export default function Home() {
 
       {/* Divider */}
       <div className="relative z-10 container mx-auto px-4">
-        <div className="h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(180,130,20,0.3), transparent)' }} />
+        <div className="h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(10,24,80,0.15), transparent)' }} />
       </div>
 
       <main className="relative z-10 container mx-auto px-4 py-14 space-y-20">
@@ -465,7 +463,7 @@ export default function Home() {
                 className="px-4 py-1.5 rounded-full text-xs font-bold transition-all"
                 style={selectedCategory === cat
                   ? { background: '#f59e0b', color: '#050d1f' }
-                  : { background: 'rgba(255,255,255,0.7)', color: 'rgba(50,40,20,0.8)', border: '1px solid rgba(180,140,30,0.2)' }}>
+                  : { background: '#f0f4ff', color: '#1e3a8a', border: '1px solid rgba(10,24,80,0.12)' }}>
                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
               </motion.button>
             ))}
@@ -485,20 +483,20 @@ export default function Home() {
                   transition={{ delay: i * 0.05, type: 'spring', stiffness: 200 }}
                   whileHover={{ scale: 1.1, y: -6 }} whileTap={{ scale: 0.96 }}
                   className="relative flex flex-col items-center text-center group cursor-pointer rounded-2xl p-4 w-[90px] sm:w-[110px] md:w-[120px] transition-all duration-300"
-                  style={{ background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(180,140,30,0.15)' }}
-                  onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(180,130,20,0.5)'; el.style.background = 'rgba(255,248,220,0.9)'; el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.35), 0 0 24px rgba(240,180,41,0.1)'; }}
-                  onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(180,140,30,0.15)'; el.style.background = 'rgba(255,255,255,0.6)'; el.style.boxShadow = 'none'; }}>
+                  style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.1)' }}
+                  onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(10,24,80,0.3)'; el.style.background = 'rgba(240,245,255,1)'; el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.35), 0 0 24px rgba(240,180,41,0.1)'; }}
+                  onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = 'rgba(10,24,80,0.1)'; el.style.background = '#ffffff'; el.style.boxShadow = 'none'; }}>
                   {site.isNew && (
                     <span className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[9px] font-black rounded-full z-10 animate-pulse"
                       style={{ background: '#dc2626', color: '#fff' }}>NEW</span>
                   )}
                   <div className="w-12 h-12 sm:w-14 sm:h-14 mb-2 flex items-center justify-center rounded-xl overflow-hidden"
-                    style={{ background: 'rgba(240,180,41,0.08)' }}>
+                    style={{ background: '#f0f4ff' }}>
                     <Image src={site.icon || '/icon-192.png'} alt={site.title} width={56} height={56} className="object-contain drop-shadow" />
                   </div>
-                  <h3 className="text-[11px] sm:text-xs font-semibold leading-tight line-clamp-2" style={{color:'#2a1f0a'}}>{site.title}</h3>
+                  <h3 className="text-[11px] sm:text-xs font-semibold leading-tight line-clamp-2" style={{color:'#0a1850'}}>{site.title}</h3>
                   <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full hidden sm:block"
-                    style={{ background: 'rgba(180,130,20,0.12)', color: '#7a4f08' }}>{site.category}</span>
+                    style={{ background: '#e8eeff', color: '#1e3a8a' }}>{site.category}</span>
                 </motion.a>
               ))}
               {filteredWebsites.length === 0 && (
@@ -519,7 +517,7 @@ export default function Home() {
               <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}
                 className="mb-5 cursor-pointer group" onClick={() => setActivePost(posts[0])}>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-0 rounded-3xl overflow-hidden shadow-2xl"
-                  style={{ border: '1px solid rgba(180,130,20,0.25)', background: 'rgba(255,255,255,0.7)' }}>
+                  style={{ border: '1px solid rgba(10,24,80,0.1)', background: '#ffffff' }}>
                   <div className="md:col-span-3 relative bg-black/30 flex items-center justify-center overflow-hidden">
                     {posts[0].videoUrl ? (
                       <div className="relative w-full">
@@ -553,14 +551,14 @@ export default function Home() {
                     <div className="absolute top-3 left-3 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider"
                       style={{ background: '#f59e0b', color: '#050d1f' }}>⭐ Featured</div>
                   </div>
-                  <div className="md:col-span-2 p-6 md:p-8 flex flex-col justify-center" style={{ background: 'rgba(255,252,240,0.92)' }}>
+                  <div className="md:col-span-2 p-6 md:p-8 flex flex-col justify-center" style={{ background: '#f8faff' }}>
                     {posts[0].caption && (
-                      <h3 className="font-black text-xl md:text-2xl leading-tight mb-3 transition-colors" style={{color:'#1a1a2e'}}
+                      <h3 className="font-black text-xl md:text-2xl leading-tight mb-3 transition-colors" style={{color:'#0a1850'}}
                         style={{ fontFamily: '\'Playfair Display\', serif' }}>{posts[0].caption}</h3>
                     )}
-                    {posts[0].description && <p className="text-sm leading-relaxed line-clamp-5" style={{ color: 'rgba(60,45,15,0.72)' }}>{posts[0].description}</p>}
+                    {posts[0].description && <p className="text-sm leading-relaxed line-clamp-5" style={{ color: 'rgba(30,58,138,0.65)' }}>{posts[0].description}</p>}
                     {posts[0].createdAt && <p className="text-xs mt-4 font-semibold" style={{ color: 'rgba(120,85,10,0.75)' }}>📅 {fmtDate(posts[0].createdAt)}</p>}
-                    <div className="mt-4 flex items-center gap-2 text-sm font-bold transition-all group-hover:gap-3" style={{ color: '#f59e0b' }}>
+                    <div className="mt-4 flex items-center gap-2 text-sm font-bold transition-all group-hover:gap-3" style={{ color: '#1e3a8a' }}>
                       Read more <span>→</span>
                     </div>
                   </div>
@@ -577,22 +575,22 @@ export default function Home() {
                       initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.06 }}
                       whileHover={{ x: 5 }}
                       className="flex gap-4 rounded-2xl overflow-hidden cursor-pointer group transition-all"
-                      style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(180,140,30,0.15)' }}
+                      style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.08)' }}
                       onClick={() => setActivePost(post)}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(180,130,20,0.4)'; e.currentTarget.style.background = 'rgba(255,248,220,0.9)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(180,140,30,0.15)'; e.currentTarget.style.background = 'rgba(255,255,255,0.65)'; }}>
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.25)'; e.currentTarget.style.background = '#f0f4ff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.08)'; e.currentTarget.style.background = '#ffffff'; }}>
                       <div className="flex-shrink-0 w-28 h-20 sm:w-36 sm:h-24 bg-black/30 overflow-hidden relative flex items-center justify-center">
                         {post.videoUrl ? (
                           <>
                             <video src={post.videoUrl} className="w-full h-full object-contain" muted playsInline preload="metadata" />
                             <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.3)' }}>
-                              <svg className="w-6 h-6" style={{ color: '#f59e0b' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                              <svg className="w-6 h-6" style={{ color: '#1e3a8a' }} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                             </div>
                           </>
                         ) : thumb ? (
                           <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
                             <motion.img src={thumb} alt={post.caption} whileHover={{ scale: 1.1 }} className="w-full h-full object-contain" />
-                            {photoCount > 1 && <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(0,0,0,0.82)', color: '#f59e0b' }}>+{photoCount - 1}</span>}
+                            {photoCount > 1 && <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold" style={{ background: 'rgba(0,0,0,0.82)', color: '#1e3a8a' }}>+{photoCount - 1}</span>}
                           </div>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-3xl opacity-25"
@@ -600,9 +598,9 @@ export default function Home() {
                         )}
                       </div>
                       <div className="flex-1 min-w-0 py-3 pr-4 flex flex-col justify-center">
-                        {post.caption && <h3 className="font-bold text-sm leading-tight mb-1 transition-colors" style={{color:'#1a1a2e'}}>{post.caption}</h3>}
-                        {post.description && <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'rgba(60,45,15,0.65)' }}>{post.description}</p>}
-                        {post.createdAt && <p className="text-xs mt-1.5 font-semibold" style={{ color: 'rgba(240,180,41,0.55)' }}>{fmtDate(post.createdAt)}</p>}
+                        {post.caption && <h3 className="font-bold text-sm leading-tight mb-1 transition-colors" style={{color:'#0a1850'}}>{post.caption}</h3>}
+                        {post.description && <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'rgba(30,58,138,0.6)' }}>{post.description}</p>}
+                        {post.createdAt && <p className="text-xs mt-1.5 font-semibold" style={{ color: 'rgba(30,58,138,0.55)' }}>{fmtDate(post.createdAt)}</p>}
                       </div>
                     </motion.div>
                   );
@@ -624,11 +622,11 @@ export default function Home() {
                     initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.08 }}
                     whileHover={{ y: -6 }}
                     className="relative rounded-2xl p-5 overflow-hidden group transition-all"
-                    style={{ background: 'rgba(255,255,255,0.65)', border: '1px solid rgba(180,140,30,0.15)' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(180,130,20,0.45)'; e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)'; }}
+                    style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.08)' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.3)'; e.currentTarget.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)'; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
                     <div className="absolute top-0 right-0 w-20 h-20 rounded-bl-3xl opacity-8"
-                      style={{ background: '#f59e0b', opacity: 0.08 }} />
+                      style={{ background: '#1e3a8a', opacity: 0.06 }} />
                     <div className="flex items-start gap-4">
                       <div className="flex-shrink-0 w-14 text-center rounded-xl py-2 shadow-lg"
                         style={{ background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', color: '#050d1f' }}>
@@ -637,9 +635,9 @@ export default function Home() {
                         <p className="text-[10px] font-bold leading-none">{d.getFullYear()}</p>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-black text-sm leading-tight mb-1.5 transition-colors" style={{color:'#1a1a2e'}}>{act.title}</h3>
-                        {act.location && <p className="text-xs mb-1" style={{ color: 'rgba(120,85,10,0.8)' }}>📍 {act.location}</p>}
-                        {act.description && <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'rgba(60,45,15,0.65)' }}>{act.description}</p>}
+                        <h3 className="font-black text-sm leading-tight mb-1.5 transition-colors" style={{color:'#0a1850'}}>{act.title}</h3>
+                        {act.location && <p className="text-xs mb-1" style={{ color: 'rgba(10,24,80,0.65)' }}>📍 {act.location}</p>}
+                        {act.description && <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'rgba(30,58,138,0.6)' }}>{act.description}</p>}
                       </div>
                     </div>
                   </motion.div>
@@ -661,17 +659,17 @@ export default function Home() {
                   {sp.link ? (
                     <a href={sp.link} target="_blank" rel="noopener noreferrer"
                       className="rounded-2xl p-4 flex flex-col items-center gap-2 w-32 h-28 justify-center block transition-all"
-                      style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(180,140,30,0.2)' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(180,130,20,0.4)'; e.currentTarget.style.background = 'rgba(255,248,220,0.9)'; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(180,140,30,0.2)'; e.currentTarget.style.background = 'rgba(255,255,255,0.7)'; }}>
+                      style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.1)' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.25)'; e.currentTarget.style.background = '#f0f4ff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(10,24,80,0.1)'; e.currentTarget.style.background = '#ffffff'; }}>
                       {sp.logoUrl && <img src={sp.logoUrl} alt={sp.name} className="max-h-10 max-w-[72px] object-contain" />}
-                      {sp.name && <p className="text-xs font-semibold text-center leading-tight" style={{color:'#2a1f0a'}}>{sp.name}</p>}
+                      {sp.name && <p className="text-xs font-semibold text-center leading-tight" style={{color:'#0a1850'}}>{sp.name}</p>}
                     </a>
                   ) : (
                     <div className="rounded-2xl p-4 flex flex-col items-center gap-2 w-32 h-28 justify-center"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                       {sp.logoUrl && <img src={sp.logoUrl} alt={sp.name} className="max-h-10 max-w-[72px] object-contain" />}
-                      {sp.name && <p className="text-xs font-semibold text-center leading-tight" style={{color:'#2a1f0a'}}>{sp.name}</p>}
+                      {sp.name && <p className="text-xs font-semibold text-center leading-tight" style={{color:'#0a1850'}}>{sp.name}</p>}
                     </div>
                   )}
                 </motion.div>
@@ -690,7 +688,7 @@ export default function Home() {
               <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 4, repeat: Infinity }} className="text-6xl mb-5">🏆</motion.div>
               <h2 className="font-black text-3xl md:text-4xl mb-3" style={{color:'#fff'}} style={{ fontFamily: '\'Playfair Display\', serif' }}>
                 Join the{' '}
-                <span style={{ background: 'linear-gradient(135deg, #f59e0b, #fcd34d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Community</span>
+                <span style={{ background: 'linear-gradient(135deg, #0a1850, #1e3a8a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Community</span>
               </h2>
               <p className="text-lg mb-8 max-w-xl mx-auto" style={{ color: 'rgba(220,210,190,0.8)' }}>
                 Connect with fellow Filipino educators, access exclusive resources, and grow professionally in Kuwait.
@@ -723,7 +721,7 @@ export default function Home() {
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: 'spring', stiffness: 280, damping: 22 }}
               className="rounded-3xl overflow-hidden shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
-              style={{ background: '#fffdf5', border: '1px solid rgba(180,130,20,0.25)' }}
+              style={{ background: '#ffffff', border: '1px solid rgba(10,24,80,0.12)' }}
               onClick={e => e.stopPropagation()}>
               {activePost.videoUrl && <video src={activePost.videoUrl} controls playsInline autoPlay className="w-full" />}
               {!activePost.videoUrl && (() => {
@@ -731,9 +729,9 @@ export default function Home() {
                 return imgs.length ? <GalleryViewer images={imgs} /> : null;
               })()}
               <div className="p-6">
-                {activePost.caption && <h2 className="font-black text-2xl mb-3" style={{color:'#1a1a2e'}} style={{ fontFamily: '\'Playfair Display\', serif' }}>{activePost.caption}</h2>}
-                {activePost.description && <p className="text-sm leading-relaxed" style={{ color: 'rgba(60,45,15,0.72)' }}>{activePost.description}</p>}
-                {activePost.createdAt && <p className="text-xs mt-4 font-bold" style={{ color: 'rgba(240,180,41,0.6)' }}>📅 {fmtDate(activePost.createdAt)}</p>}
+                {activePost.caption && <h2 className="font-black text-2xl mb-3" style={{color:'#0a1850'}} style={{ fontFamily: '\'Playfair Display\', serif' }}>{activePost.caption}</h2>}
+                {activePost.description && <p className="text-sm leading-relaxed" style={{ color: 'rgba(30,58,138,0.65)' }}>{activePost.description}</p>}
+                {activePost.createdAt && <p className="text-xs mt-4 font-bold" style={{ color: 'rgba(30,58,138,0.6)' }}>📅 {fmtDate(activePost.createdAt)}</p>}
               </div>
               <motion.button onClick={() => setActivePost(null)} whileHover={{ scale: 1.1, rotate: 90 }} whileTap={{ scale: 0.9 }}
                 className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-sm z-10 transition-all"
@@ -744,18 +742,18 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ── FOOTER ── */}
-      <footer className="relative z-10 mt-6" style={{ borderTop: '1px solid rgba(180,130,20,0.15)', background: 'rgba(245,240,232,0.95)', backdropFilter: 'blur(20px)' }}>
+      <footer className="relative z-10 mt-6" style={{ borderTop: '1px solid rgba(10,24,80,0.08)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)' }}>
         <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center" style={{ background: '#1a1a2e', padding: 4 }}><Image src="/tsok-logo.png" alt="TSOK" width={30} height={30} /></div>
             <div>
-              <p className="font-black text-sm" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</p>
-              <p className="text-[10px]" style={{ color: 'rgba(120,85,10,0.55)' }}>Teachers-Specialists Organization Kuwait</p>
+              <p className="font-black text-sm" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #0a1850, #1e3a8a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</p>
+              <p className="text-[10px]" style={{ color: 'rgba(10,24,80,0.45)' }}>Teachers-Specialists Organization Kuwait</p>
             </div>
           </div>
-          <p className="text-xs text-center" style={{ color: 'rgba(60,45,15,0.5)' }}>
+          <p className="text-xs text-center" style={{ color: 'rgba(30,58,138,0.45)' }}>
             © 2026 TSOK · Developed by{' '}
-            <span className="font-bold" style={{ color: '#92600a' }}>TSOK Officer 2026</span>
+            <span className="font-bold" style={{ color: '#1e3a8a' }}>Godmisoft</span>
           </p>
         </div>
       </footer>
