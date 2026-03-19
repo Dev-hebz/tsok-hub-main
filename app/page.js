@@ -492,9 +492,9 @@ export default function Home() {
                     <span className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[9px] font-black rounded-full z-10 animate-pulse"
                       style={{ background: '#dc2626', color: '#fff' }}>NEW</span>
                   )}
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 mb-2 flex items-center justify-center rounded-xl overflow-hidden"
-                    style={{ background: 'rgba(240,180,41,0.08)' }}>
-                    <Image src={site.icon || '/icon-192.png'} alt={site.title} width={56} height={56} className="object-contain drop-shadow" />
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 mb-2 flex items-center justify-center rounded-full overflow-hidden"
+                    style={{ background: '#ffffff', boxShadow: '0 0 12px rgba(240,180,41,0.2)', padding: 3 }}>
+                    <Image src={site.icon || '/icon-192.png'} alt={site.title} width={52} height={52} className="object-contain drop-shadow" />
                   </div>
                   <h3 className="text-[11px] sm:text-xs font-semibold leading-tight line-clamp-2" style={{color:'#ffffff'}}>{site.title}</h3>
                   <span className="mt-1.5 px-2 py-0.5 text-[9px] font-bold rounded-full hidden sm:block"
