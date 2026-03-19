@@ -600,7 +600,7 @@ export default function Home() {
           </div>
           <p className="text-xs text-center" style={{ color: 'rgba(255,255,255,0.28)' }}>
             © 2026 TSOK · Developed by{' '}
-            <span className="font-bold" style={{ color: '#f59e0b' }}>Godmisoft</span>
+            <span className="font-bold" style={{ color: '#f59e0b' }}>TSOK Oficers 2026</span>
           </p>
         </div>
       </footer>
