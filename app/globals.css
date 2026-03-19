@@ -8,12 +8,13 @@
   --navy:    #050d1f;
   --navy2:   #0a1628;
   --navy3:   #0f2040;
-  --gold:    #f0b429;
-  --gold2:   #fcd34d;
-  --gold3:   #f59e0b;
+  --gold:    #b8860b;
+  --gold2:   #d4a017;
+  --gold3:   #92600a;
   --crimson: #dc2626;
-  --ice:     #e2eeff;
-  --slate:   #94a3b8;
+  --ice:     #f5f0e8;
+  --bg-main: #f5f0e8;
+  --slate:   #6b5a3a;
 }
 
 * { box-sizing: border-box; }
@@ -22,8 +23,8 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: 'DM Sans', sans-serif;
-  background: var(--navy);
-  color: #fff;
+  background: #f5f0e8;
+  color: #1a1a2e;
   overflow-x: hidden;
 }
 
