@@ -422,9 +422,9 @@ export default function Home() {
           {/* Stats */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55, duration: 0.7 }}
             className="flex flex-wrap justify-center gap-10 mb-10">
-            {[{ label: 'Member Websites', value: Math.max(websites.length, 12), suffix: '+' },
+            {[{ label: 'Member Websites', value: Math.max(websites.length, 6), suffix: '+' },
               { label: 'Active Members', value: 200, suffix: '+' },
-              { label: 'Years of Service', value: 10, suffix: '+' }].map(({ label, value, suffix }) => (
+              { label: 'Years of Service', value: 11, suffix: '+' }].map(({ label, value, suffix }) => (
               <div key={label} className="text-center">
                 <p className="text-3xl md:text-4xl font-black"
                   style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
