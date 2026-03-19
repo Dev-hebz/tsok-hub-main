@@ -555,11 +555,11 @@ export default function Home() {
                   </div>
                   <div className="md:col-span-2 p-6 md:p-8 flex flex-col justify-center" style={{ background: 'rgba(5,13,31,0.6)' }}>
                     {posts[0].caption && (
-                      <h3 className="font-black text-xl md:text-2xl leading-tight mb-3 transition-colors" style={{color:'#ffffff'}}
-                        style={{ fontFamily: '\'Playfair Display\', serif' }}>{posts[0].caption}</h3>
+                      <h3 className="font-black text-xl md:text-2xl leading-tight mb-3 transition-colors"
+                        style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif" }}>{posts[0].caption}</h3>
                     )}
                     {posts[0].description && <p className="text-sm leading-relaxed line-clamp-5" style={{ color: 'rgba(226,238,255,0.65)' }}>{posts[0].description}</p>}
-                    {posts[0].createdAt && <p className="text-xs mt-4 font-semibold" style={{ color: 'rgba(120,85,10,0.75)' }}>📅 {fmtDate(posts[0].createdAt)}</p>}
+                    {posts[0].createdAt && <p className="text-xs mt-4 font-semibold" style={{ color: 'rgba(240,180,41,0.7)' }}>📅 {fmtDate(posts[0].createdAt)}</p>}
                     <div className="mt-4 flex items-center gap-2 text-sm font-bold transition-all group-hover:gap-3" style={{ color: '#f59e0b' }}>
                       Read more <span>→</span>
                     </div>
@@ -731,7 +731,7 @@ export default function Home() {
                 return imgs.length ? <GalleryViewer images={imgs} /> : null;
               })()}
               <div className="p-6">
-                {activePost.caption && <h2 className="font-black text-2xl mb-3" style={{color:'#ffffff'}} style={{ fontFamily: '\'Playfair Display\', serif' }}>{activePost.caption}</h2>}
+                {activePost.caption && <h2 className="font-black text-2xl mb-3" style={{ color: '#ffffff', fontFamily: "'Playfair Display', serif" }}>{activePost.caption}</h2>}
                 {activePost.description && <p className="text-sm leading-relaxed" style={{ color: 'rgba(226,238,255,0.65)' }}>{activePost.description}</p>}
                 {activePost.createdAt && <p className="text-xs mt-4 font-bold" style={{ color: 'rgba(240,180,41,0.6)' }}>📅 {fmtDate(activePost.createdAt)}</p>}
               </div>
@@ -747,7 +747,7 @@ export default function Home() {
       <footer className="relative z-10 mt-6" style={{ borderTop: '1px solid rgba(240,180,41,0.1)', background: 'rgba(5,13,31,0.85)', backdropFilter: 'blur(20px)' }}>
         <div className="container mx-auto px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center" style={{ background: '#1a1a2e', padding: 4 }}><Image src="/tsok-logo.png" alt="TSOK" width={30} height={30} /></div>
+            <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center" style={{ background: '#ffffff', boxShadow: '0 0 12px rgba(240,180,41,0.25)', padding: 3 }}><Image src="/tsok-logo.png" alt="TSOK" width={32} height={32} /></div>
             <div>
               <p className="font-black text-sm" style={{ fontFamily: '\'Playfair Display\', serif', background: 'linear-gradient(135deg, #f59e0b, #fcd34d, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>TSOK Hub</p>
               <p className="text-[10px]" style={{ color: 'rgba(240,180,41,0.4)' }}>Teachers-Specialists Organization Kuwait</p>
